@@ -1,26 +1,28 @@
 {
   "expo": {
-    "name": "fnts-mobile",
+    "name": "fromNowToSuccess",
     "slug": "fnts-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fntsmobile",
+    "scheme": "fnts",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f5f5f4",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "dev.rayanemelzi.fnts",
+      "supportsTablet": true
     },
     "android": {
+      "package": "dev.rayanemelzi.fnts",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FEF9E8",
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -28,11 +30,21 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FEF9E8",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 140,
+          "dark": {
+            "backgroundColor": "#0c0a09"
+          }
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#d97706"
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
