@@ -1,0 +1,80 @@
+name: Release
+
+# Push a version tag (git tag v1.2.0 && git push origin v1.2.0) and this
+# builds a signed APK and publishes it as a GitHub release. Installed apps
+# find it through the releases API and update themselves.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the signing secrets exist
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in KEYSTORE STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret for $name — see README › Releases"
+              exit 1
+            fi
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo lint
+
+      - name: Stamp the version from the tag
+        run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
+
+      - name: Generate the native Android project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Build the signed APK
+        working-directory: android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          ./gradlew assembleRelease --no-daemon \
+            -PFNTS_STORE_FILE="$RUNNER_TEMP/release.keystore" \
+            -PFNTS_STORE_PASSWORD="$STORE_PASSWORD" \
+            -PFNTS_KEY_ALIAS="$KEY_ALIAS" \
+            -PFNTS_KEY_PASSWORD="$KEY_PASSWORD"
+          rm "$RUNNER_TEMP/release.keystore"
+
+      - name: Name the APK after the version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp android/app/build/outputs/apk/release/app-release.apk "fromNowToSuccess-$VERSION.apk"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fromNowToSuccess-*.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true

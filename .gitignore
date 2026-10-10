@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# release signing — never commit; back these up
+*.keystore
+keystore.properties

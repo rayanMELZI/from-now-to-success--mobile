@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Lets the app install the APKs it downloads from its own GitHub releases. -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <receiver
+      android:name="expo.modules.fntsupdater.UpdateReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

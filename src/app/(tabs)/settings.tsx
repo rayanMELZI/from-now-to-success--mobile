@@ -4,6 +4,7 @@ import Constants from "expo-constants";
 import {
   Bell,
   BookOpen,
+  Download,
   ClipboardList,
   Globe,
   LogOut,
@@ -23,6 +24,15 @@ import {
   syncReminders,
 } from "@/lib/reminders";
 import { tw, useTheme } from "@/lib/theme";
+import {
+  CURRENT_VERSION,
+  UPDATES_SUPPORTED,
+  autoUpdateEnabled,
+  checkForUpdate,
+  installUpdate,
+  setAutoUpdate,
+  useUpdateState,
+} from "@/lib/updater";
 import { useOnboarding } from "@/components/OnboardingGuide";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn } from "@/components/ui/Button";
@@ -87,11 +97,15 @@ export default function SettingsScreen() {
   const [plannerBusy, setPlannerBusy] = useState(false);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [testSent, setTestSent] = useState(false);
+  const [autoUpdate, setAutoUpdateState] = useState<boolean | null>(null);
+  const [checkedOnce, setCheckedOnce] = useState(false);
+  const update = useUpdateState();
 
   const zones = useMemo(() => allTimezones(user.timezone).map((z) => ({ value: z, label: z })), [user.timezone]);
 
   useEffect(() => {
     remindersEnabled().then(setRemindersOn);
+    autoUpdateEnabled().then(setAutoUpdateState);
   }, []);
 
   const dirty =
@@ -252,6 +266,58 @@ export default function SettingsScreen() {
           ]}
         />
       </Card>
+
+      {UPDATES_SUPPORTED && (
+        <Card style={{ gap: 12 }}>
+          <Txt weight="600">App updates</Txt>
+          <Txt variant="small" color="soft">
+            Version {CURRENT_VERSION}.{" "}
+            {update.latest
+              ? `Version ${update.latest.version} is available.`
+              : checkedOnce && !update.checking && !update.error
+                ? "You have the latest version."
+                : "New versions come from the app's GitHub releases."}
+          </Txt>
+          <ToggleCard
+            active={!!autoUpdate}
+            disabled={autoUpdate === null}
+            tone={tone.success}
+            icon={(color) => <Download size={18} color={color} />}
+            title="Install updates automatically"
+            subtitle="The first update asks you to confirm once; later ones install by themselves."
+            onToggle={() => {
+              const next = !autoUpdate;
+              setAutoUpdateState(next);
+              void setAutoUpdate(next);
+            }}
+          />
+          {update.error && <Banner tone="warning">{update.error}</Banner>}
+          {update.latest ? (
+            <Btn
+              label={
+                update.phase === "downloading"
+                  ? `Downloading… ${Math.round(update.progress * 100)}%`
+                  : update.phase === "installing" || update.phase === "waiting"
+                    ? "Installing…"
+                    : `Update to ${update.latest.version}`
+              }
+              icon={<Download size={15} color="#fff" />}
+              disabled={update.phase === "downloading" || update.phase === "installing"}
+              onPress={() => void installUpdate()}
+            />
+          ) : (
+            <Btn
+              variant="ghost"
+              label={update.checking ? "Checking…" : "Check for updates"}
+              loading={update.checking}
+              onPress={async () => {
+                await checkForUpdate(true);
+                setCheckedOnce(true);
+              }}
+            />
+          )}
+        </Card>
+      )}
 
       <Card style={{ gap: 12 }}>
         <Txt weight="600">Account</Txt>

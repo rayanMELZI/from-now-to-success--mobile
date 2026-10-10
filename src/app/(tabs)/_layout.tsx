@@ -5,6 +5,7 @@ import * as Notifications from "expo-notifications";
 import { BarChart3, ClipboardList, ListChecks, Map as MapIcon, Settings } from "lucide-react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { OnboardingProvider } from "@/components/OnboardingGuide";
+import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { useUser } from "@/lib/auth";
 import { syncReminders } from "@/lib/reminders";
 import { useTheme } from "@/lib/theme";
@@ -69,6 +70,7 @@ export default function TabsLayout() {
           options={{ title: "Settings", tabBarIcon: ({ color, size }) => <Settings size={size - 2} color={color} /> }}
         />
       </Tabs>
+      <UpdatePrompt />
     </OnboardingProvider>
   );
 }

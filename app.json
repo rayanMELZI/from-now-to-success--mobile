@@ -19,7 +19,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "softwareKeyboardLayoutMode": "resize",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 10000
     },
     "web": {
       "output": "single",
@@ -44,7 +45,8 @@
           "color": "#d97706"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/withReleaseSigning"
     ],
     "experiments": {
       "typedRoutes": true,
