@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppState, View } from "react-native";
+import { AppState, InteractionManager, View } from "react-native";
 import { Download, Sparkles } from "lucide-react-native";
 import {
   CURRENT_VERSION,
@@ -23,21 +23,25 @@ export function UpdatePrompt() {
   const { tone } = useTheme();
   const update = useUpdateState();
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const [auto, setAuto] = useState<boolean | null>(null);
+  const [auto, setAuto] = useState(autoUpdateEnabled);
 
   useEffect(() => {
     if (!UPDATES_SUPPORTED) return;
     const run = async () => {
-      const autoOn = await autoUpdateEnabled();
+      const autoOn = autoUpdateEnabled();
       setAuto(autoOn);
       const release = await checkForUpdate();
       if (release && autoOn) void installUpdate();
     };
-    void run();
+    // Never ahead of the first screen: the check waits until it is drawn.
+    const task = InteractionManager.runAfterInteractions(() => void run());
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") void run();
     });
-    return () => sub.remove();
+    return () => {
+      task.cancel();
+      sub.remove();
+    };
   }, []);
 
   if (!UPDATES_SUPPORTED || !update.latest) return null;

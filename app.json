@@ -47,6 +47,7 @@
       ],
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
+      "expo-sqlite",
       [
         "expo-build-properties",
         {
