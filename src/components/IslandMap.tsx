@@ -1,28 +1,26 @@
 import { useMemo, useState } from "react";
-import { Pressable, View, type LayoutChangeEvent } from "react-native";
+import { Platform, Pressable, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import Svg, { ClipPath, Circle, Defs, Path, Pattern, Rect } from "react-native-svg";
+import { runOnJS, useDerivedValue, useSharedValue, withTiming } from "react-native-reanimated";
 import {
-  AlertTriangle,
-  Ban,
-  Check,
-  Flame,
-  Footprints,
-  Lock,
-  Maximize2,
-  Sparkles,
-  ZoomIn,
-  ZoomOut,
-  Zap,
-} from "lucide-react-native";
+  Canvas,
+  DashPathEffect,
+  Group,
+  ImageSVG,
+  matchFont,
+  Path,
+  Points,
+  Rect,
+  Skia,
+  Text as SkiaText,
+  vec,
+  type SkFont,
+  type SkSVG,
+} from "@shopify/react-native-skia";
+import { Maximize2, ZoomIn, ZoomOut } from "lucide-react-native";
 import { habitRisk, type Habit } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { Txt } from "./ui/Txt";
+import { MAP_ICONS, type MapIconName } from "./mapIcons";
 
 /* ------------------------------------------------------------------ */
 /* Layout — the same layered layout as the web map. Columns are        */
@@ -152,26 +150,76 @@ function blobPath(seed: number, w: number, h: number, inset = 2): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Nodes                                                               */
+/* Drawing — one Skia canvas on the GPU. Panning and pinching only     */
+/* change the canvas transform (reanimated shared values), so moving   */
+/* the map never re-renders React or re-rasterizes a view.             */
 /* ------------------------------------------------------------------ */
+
+const FONT_FAMILY = Platform.select({ ios: "Helvetica", default: "sans-serif" });
+
+/** Shortens a label until it fits, ending it with an ellipsis. */
+function fit(text: string, font: SkFont, maxWidth: number): string {
+  if (font.measureText(text).width <= maxWidth) return text;
+  let cut = text;
+  while (cut.length > 1 && font.measureText(`${cut}…`).width > maxWidth) cut = cut.slice(0, -1);
+  return `${cut.trimEnd()}…`;
+}
+
+/** Lucide icons as Skia SVGs, parsed once per icon and colour for the app's lifetime. */
+const iconCache = new Map<string, SkSVG | null>();
+function mapIcon(name: MapIconName, color: string): SkSVG | null {
+  const key = `${name}:${color}`;
+  if (!iconCache.has(key)) {
+    iconCache.set(key, Skia.SVG.MakeFromString(MAP_ICONS[name].replaceAll("currentColor", color)));
+  }
+  return iconCache.get(key) ?? null;
+}
+
+/** One piece of a centred row: an icon or a run of text. */
+type RowItem = { icon: MapIconName; color: string; size: number } | { text: string; color: string };
+
+/** Lays a row of icons and words out side by side, centred on `cx`. */
+function Row({ items, cx, y, font }: { items: RowItem[]; cx: number; y: number; font: SkFont }) {
+  const GAP = 4;
+  const widths = items.map((it) => ("icon" in it ? it.size : font.measureText(it.text).width));
+  const total = widths.reduce((a, b) => a + b, 0) + GAP * (items.length - 1);
+  const starts: number[] = [];
+  for (let i = 0, x = cx - total / 2; i < items.length; x += widths[i] + GAP, i++) starts.push(x);
+  return (
+    <>
+      {items.map((it, i) =>
+        "icon" in it ? (
+          <ImageSVG key={i} svg={mapIcon(it.icon, it.color)} x={starts[i]} y={y - it.size + 1} width={it.size} height={it.size} />
+        ) : (
+          <SkiaText key={i} text={it.text} x={starts[i]} y={y} font={font} color={it.color} />
+        ),
+      )}
+    </>
+  );
+}
+
+interface Fonts {
+  title: SkFont;
+  small: SkFont;
+}
 
 function HabitIsland({
   habit,
   selected,
   at,
-  onPress,
+  fonts,
 }: {
   habit: Habit;
   selected: boolean;
   at: Point;
-  onPress: () => void;
+  fonts: Fonts;
 }) {
   const { c, isDark } = useTheme();
   const locked = habit.status === "LOCKED";
   const valid = habit.status === "VALID";
   const risk = habitRisk(habit);
   const pct = habit.requiredStreak > 0 ? Math.min(1, habit.gauge / habit.requiredStreak) : 0;
-  const d = useMemo(() => blobPath(habit.id, NODE_W, NODE_H), [habit.id]);
+  const blob = useMemo(() => Skia.Path.MakeFromSVGString(blobPath(habit.id, NODE_W, NODE_H))!, [habit.id]);
 
   const border = selected
     ? tw.amber[500]
@@ -194,99 +242,82 @@ function HabitIsland({
           ? "rgba(110,231,183,0.6)"
           : "rgba(252,211,77,0.6)";
 
+  const cx = NODE_W / 2;
+  const nameColor = locked ? c.inkSoft : c.ink;
+  const lead: MapIconName | null = locked ? "lock" : habit.habitType === "QUIT" ? "ban" : null;
+  const nameWidth = NODE_W - 36 - (lead ? 17 : 0);
+  const name = fit(habit.name, fonts.title, nameWidth);
+
+  const stats: RowItem[] = locked
+    ? [{ text: "locked", color: c.inkFaint }]
+    : [
+        ...(risk
+          ? [{ icon: "alert" as const, color: risk === "critical" ? tw.rose[600] : tw.amber[600], size: 13 }]
+          : valid
+            ? [{ icon: "check" as const, color: tw.emerald[600], size: 13 }]
+            : []),
+        { icon: "zap", color: tw.amber[600], size: 12 },
+        { text: `${habit.gauge}/${habit.requiredStreak}`, color: c.inkSoft },
+        { text: "·", color: c.inkFaint },
+        { icon: "flame", color: tw.orange[500], size: 12 },
+        { text: String(habit.currentStreak), color: c.inkSoft },
+      ];
+
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${habit.name}, ${habit.status.toLowerCase()}, gauge ${habit.gauge} of ${habit.requiredStreak}`}
-      style={{ position: "absolute", left: at.x, top: at.y, width: NODE_W, height: NODE_H }}
-    >
-      <Svg width={NODE_W} height={NODE_H}>
-        <Defs>
-          <ClipPath id={`island-${habit.id}`}>
-            <Path d={d} />
-          </ClipPath>
-        </Defs>
-        <Path d={d} fill={fill} />
-        {!locked && pct > 0 && (
-          <Rect
-            x={0}
-            y={NODE_H * (1 - pct)}
-            width={NODE_W}
-            height={NODE_H * pct}
-            fill={liquid}
-            clipPath={`url(#island-${habit.id})`}
-          />
-        )}
-        <Path d={d} fill="none" stroke={border} strokeWidth={selected || risk === "critical" ? 3 : 2} />
-      </Svg>
-      <View
-        style={{
-          position: "absolute",
-          inset: 0,
-          alignItems: "center",
-          justifyContent: "center",
-          paddingHorizontal: 18,
-          gap: 4,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, maxWidth: "100%" }}>
-          {locked && <Lock size={13} color={c.inkSoft} />}
-          {!locked && habit.habitType === "QUIT" && <Ban size={13} color={tw.red[500]} />}
-          <Txt weight="700" numberOfLines={1} color={locked ? "soft" : "ink"} style={{ fontSize: 15, flexShrink: 1 }}>
-            {habit.name}
-          </Txt>
-        </View>
-        {locked ? (
-          <Txt variant="small" color="faint">
-            locked
-          </Txt>
-        ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            {risk ? (
-              <AlertTriangle size={13} color={risk === "critical" ? tw.rose[600] : tw.amber[600]} />
-            ) : (
-              valid && <Check size={13} color={tw.emerald[600]} />
-            )}
-            <Zap size={12} color={tw.amber[600]} />
-            <Txt variant="small" color="soft" tabular>
-              {habit.gauge}/{habit.requiredStreak}
-            </Txt>
-            <Txt variant="small" color="faint">
-              ·
-            </Txt>
-            <Flame size={12} color={tw.orange[500]} />
-            <Txt variant="small" color="soft" tabular>
-              {habit.currentStreak}
-            </Txt>
-          </View>
-        )}
-      </View>
-    </Pressable>
+    <Group transform={[{ translateX: at.x }, { translateY: at.y }]}>
+      <Path path={blob} color={fill} />
+      {!locked && pct > 0 && (
+        <Group clip={blob}>
+          <Rect x={0} y={NODE_H * (1 - pct)} width={NODE_W} height={NODE_H * pct} color={liquid} />
+        </Group>
+      )}
+      <Path
+        path={blob}
+        color={border}
+        style="stroke"
+        strokeWidth={selected || risk === "critical" ? 3 : 2}
+      />
+      <Row
+        items={[
+          ...(lead ? [{ icon: lead, color: lead === "ban" ? tw.red[500] : c.inkSoft, size: 13 }] : []),
+          { text: name, color: nameColor },
+        ]}
+        cx={cx}
+        y={NODE_H / 2 - 3}
+        font={fonts.title}
+      />
+      <Row items={stats} cx={cx} y={NODE_H / 2 + 19} font={fonts.small} />
+    </Group>
   );
 }
 
-function AnchorIsland({ label, at }: { label: "now" | "success"; at: Point }) {
+function AnchorIsland({ label, at, fonts }: { label: "now" | "success"; at: Point; fonts: Fonts }) {
   const { isDark } = useTheme();
-  const d = useMemo(() => blobPath(label === "now" ? 5 : 9, ANCHOR_W, NODE_H), [label]);
-  const Icon = label === "now" ? Footprints : Sparkles;
+  const blob = useMemo(
+    () => Skia.Path.MakeFromSVGString(blobPath(label === "now" ? 5 : 9, ANCHOR_W, NODE_H))!,
+    [label],
+  );
+  const color = isDark ? tw.amber[300] : tw.amber[700];
+  const cx = ANCHOR_W / 2;
   return (
-    <View style={{ position: "absolute", left: at.x, top: at.y, width: ANCHOR_W, height: NODE_H }}>
-      <Svg width={ANCHOR_W} height={NODE_H}>
-        <Path
-          d={d}
-          fill={isDark ? "rgba(251,191,36,0.15)" : tw.amber[100]}
-          stroke="rgba(146,64,14,0.6)"
-          strokeWidth={2}
-        />
-      </Svg>
-      <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", gap: 4 }}>
-        <Icon size={24} color={isDark ? tw.amber[300] : tw.amber[700]} />
-        <Txt weight="700" color={isDark ? tw.amber[200] : tw.amber[900]}>
-          {label}
-        </Txt>
-      </View>
-    </View>
+    <Group transform={[{ translateX: at.x }, { translateY: at.y }]}>
+      <Path path={blob} color={isDark ? "rgba(251,191,36,0.15)" : tw.amber[100]} />
+      <Path path={blob} color="rgba(146,64,14,0.6)" style="stroke" strokeWidth={2} />
+      <ImageSVG
+        svg={mapIcon(label === "now" ? "footprints" : "sparkles", color)}
+        x={cx - 12}
+        y={NODE_H / 2 - 30}
+        width={24}
+        height={24}
+      />
+      <SkiaText
+        text={label}
+        x={cx - fonts.title.measureText(label).width / 2}
+        y={NODE_H / 2 + 18}
+        font={fonts.title}
+        color={isDark ? tw.amber[200] : tw.amber[900]}
+      />
+    </Group>
   );
 }
 
@@ -298,6 +329,7 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 1.8;
 /** Below this the island names stop being readable on a phone. */
 const READABLE_SCALE = 0.55;
+const DOT_GAP = 22;
 
 export function IslandMap({
   habits,
@@ -310,6 +342,13 @@ export function IslandMap({
 }) {
   const { c } = useTheme();
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const fonts = useMemo<Fonts>(
+    () => ({
+      title: matchFont({ fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: "700" }),
+      small: matchFont({ fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: "400" }),
+    }),
+    [],
+  );
 
   // Positions depend only on the graph's shape, not on gauges or selection.
   const structure = habits
@@ -348,18 +387,23 @@ export function IslandMap({
           const x2 = to.x;
           const y2 = to.y + NODE_H / 2;
           const mid = (x2 - x1) / 2;
+          const path = Skia.Path.MakeFromSVGString(`M ${x1} ${y1} C ${x1 + mid} ${y1} ${x2 - mid} ${y2} ${x2} ${y2}`)!;
           const flowing = habits.find((h) => h.id === prereqId)?.status === "VALID";
-          return [
-            {
-              id: `${prereqId}-${habit.id}`,
-              d: `M ${x1} ${y1} C ${x1 + mid} ${y1} ${x2 - mid} ${y2} ${x2} ${y2}`,
-              flowing,
-            },
-          ];
+          return [{ id: `${prereqId}-${habit.id}`, path, flowing }];
         }),
       ),
     [habits, positions],
   );
+
+  // The dotted chart paper, fixed under the moving islands.
+  const dots = useMemo(() => {
+    if (!size) return [];
+    const points = [];
+    for (let x = DOT_GAP / 2; x < size.w; x += DOT_GAP) {
+      for (let y = DOT_GAP / 2; y < size.h; y += DOT_GAP) points.push(vec(x, y));
+    }
+    return points;
+  }, [size]);
 
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
@@ -367,9 +411,9 @@ export function IslandMap({
 
   /** Where the map opens: all of it if that stays readable, else the start. */
   function framing(w: number, h: number) {
-    const fit = Math.min(w / width, h / height);
-    if (fit >= READABLE_SCALE) {
-      const s = Math.min(fit, 1);
+    const fitScale = Math.min(w / width, h / height);
+    if (fitScale >= READABLE_SCALE) {
+      const s = Math.min(fitScale, 1);
       return { s, x: (w - width * s) / 2, y: (h - height * s) / 2 };
     }
     // Too big to read whole: open on "now" at a readable zoom, spine centred.
@@ -407,6 +451,15 @@ export function IslandMap({
     sc.value = withTiming(next);
   }
 
+  /** A tap, in map coordinates: which island (if any) is under it. */
+  function hitTest(x: number, y: number) {
+    const hit = habits.find((habit) => {
+      const p = positions.get(String(habit.id));
+      return p && x >= p.x && x <= p.x + NODE_W && y >= p.y && y <= p.y + NODE_H;
+    });
+    if (hit) onSelect(hit);
+  }
+
   const pan = Gesture.Pan()
     .minDistance(4)
     .onChange((e) => {
@@ -422,13 +475,23 @@ export function IslandMap({
     sc.value = next;
   });
 
-  const transform = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: sc.value }],
-  }));
+  const tap = Gesture.Tap()
+    .maxDuration(300)
+    .onEnd((e, success) => {
+      if (!success) return;
+      runOnJS(hitTest)((e.x - tx.value) / sc.value, (e.y - ty.value) / sc.value);
+    });
+
+  const transform = useDerivedValue(() => [
+    { translateX: tx.value },
+    { translateY: ty.value },
+    { scale: sc.value },
+  ]);
 
   return (
     <View
       onLayout={onLayout}
+      accessibilityLabel={`Roadmap map with ${habits.length} habits. Switch to the list view to read them one by one.`}
       style={{
         flex: 1,
         minHeight: 360,
@@ -439,46 +502,36 @@ export function IslandMap({
         overflow: "hidden",
       }}
     >
-      {/* the dotted chart paper — fixed, the islands drift over it */}
-      <Svg width="100%" height="100%" style={{ position: "absolute" }}>
-        <Defs>
-          <Pattern id="dots" width={22} height={22} patternUnits="userSpaceOnUse">
-            <Circle cx={11} cy={11} r={1.2} fill={c.lineStrong} />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#dots)" />
-      </Svg>
-
-      <GestureDetector gesture={Gesture.Simultaneous(pan, pinch)}>
+      <GestureDetector gesture={Gesture.Race(Gesture.Simultaneous(pan, pinch), tap)}>
         <View style={{ flex: 1 }} collapsable={false}>
           {size && (
-            <Animated.View
-              style={[{ width, height, transformOrigin: "left top" }, transform]}
-            >
-              <Svg width={width} height={height} style={{ position: "absolute" }}>
+            <Canvas style={{ flex: 1 }}>
+              <Points points={dots} mode="points" color={c.lineStrong} strokeWidth={2.4} strokeCap="round" />
+              <Group transform={transform}>
                 {edges.map((edge) => (
                   <Path
                     key={edge.id}
-                    d={edge.d}
-                    fill="none"
-                    stroke={edge.flowing ? tw.amber[600] : tw.stone[400]}
+                    path={edge.path}
+                    style="stroke"
+                    color={edge.flowing ? tw.amber[600] : tw.stone[400]}
                     strokeWidth={edge.flowing ? 2.5 : 1.8}
-                    strokeDasharray={edge.flowing ? undefined : "6 6"}
+                  >
+                    {!edge.flowing && <DashPathEffect intervals={[6, 6]} />}
+                  </Path>
+                ))}
+                <AnchorIsland label="now" at={positions.get("now")!} fonts={fonts} />
+                <AnchorIsland label="success" at={positions.get("success")!} fonts={fonts} />
+                {habits.map((habit) => (
+                  <HabitIsland
+                    key={habit.id}
+                    habit={habit}
+                    selected={habit.id === selectedId}
+                    at={positions.get(String(habit.id))!}
+                    fonts={fonts}
                   />
                 ))}
-              </Svg>
-              <AnchorIsland label="now" at={positions.get("now")!} />
-              <AnchorIsland label="success" at={positions.get("success")!} />
-              {habits.map((habit) => (
-                <HabitIsland
-                  key={habit.id}
-                  habit={habit}
-                  selected={habit.id === selectedId}
-                  at={positions.get(String(habit.id))!}
-                  onPress={() => onSelect(habit)}
-                />
-              ))}
-            </Animated.View>
+              </Group>
+            </Canvas>
           )}
         </View>
       </GestureDetector>
