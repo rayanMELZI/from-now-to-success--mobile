@@ -1,33 +1,53 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import Storage from "expo-sqlite/kv-store";
 
 /**
- * AsyncStorage with the failure modes folded away: everything kept here is a
- * convenience (a remembered tab, a cached screen), never the only copy of
- * anything, so a read that fails is just "nothing stored".
+ * Synchronous key-value storage (SQLite under the hood). Synchronous is the
+ * point: preferences, the theme and the last signed-in user are known on the
+ * very first render, so the app never paints a default and then jumps.
+ *
+ * Everything kept here is a convenience (a remembered tab, the cached
+ * screens), never the only copy of anything, so a failed read is just
+ * "nothing stored".
  */
-export async function readJson<T>(key: string): Promise<T | null> {
+export function loadJson<T>(key: string): T | null {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    const raw = Storage.getItemSync(key);
     return raw === null ? null : (JSON.parse(raw) as T);
   } catch {
     return null;
   }
 }
 
-export async function writeJson(key: string, value: unknown): Promise<void> {
+export function saveJson(key: string, value: unknown): void {
   try {
-    if (value === null || value === undefined) await AsyncStorage.removeItem(key);
-    else await AsyncStorage.setItem(key, JSON.stringify(value));
+    if (value === null || value === undefined) Storage.removeItemSync(key);
+    else Storage.setItemSync(key, JSON.stringify(value));
   } catch {
     /* full or unavailable — the app works without it */
   }
 }
 
-export async function removeByPrefix(prefix: string): Promise<void> {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    await AsyncStorage.multiRemove(keys.filter((k) => k.startsWith(prefix)));
-  } catch {
-    /* nothing to clear */
-  }
-}
+/** Raw string access, for the query cache persister. */
+export const rawStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return Storage.getItemSync(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      Storage.setItemSync(key, value);
+    } catch {
+      /* see saveJson */
+    }
+  },
+  removeItem: (key: string): void => {
+    try {
+      Storage.removeItemSync(key);
+    } catch {
+      /* nothing to remove */
+    }
+  },
+};

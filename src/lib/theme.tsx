@@ -2,12 +2,11 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useState,
   type ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
-import { readJson, writeJson } from "./storage";
+import { loadJson, saveJson } from "./storage";
 
 /** The Tailwind shades the web app uses, so both apps share one palette. */
 export const tw = {
@@ -131,17 +130,13 @@ const PREF_KEY = "fnts.theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-
-  useEffect(() => {
-    readJson<ThemePreference>(PREF_KEY).then((saved) => {
-      if (saved) setPreferenceState(saved);
-    });
-  }, []);
+  const [preference, setPreferenceState] = useState<ThemePreference>(
+    () => loadJson<ThemePreference>(PREF_KEY) ?? "system",
+  );
 
   const setPreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
-    void writeJson(PREF_KEY, next);
+    saveJson(PREF_KEY, next);
   }, []);
 
   const isDark = preference === "system" ? system === "dark" : preference === "dark";

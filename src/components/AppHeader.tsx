@@ -1,26 +1,21 @@
-import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
-import { usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CloudOff, MessageSquarePlus, Moon, Star, Sun } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 import { useOnline } from "@/lib/offline";
 import { tw, useTheme } from "@/lib/theme";
 import { Txt } from "./ui/Txt";
-import { FeedbackSheet } from "./FeedbackSheet";
 
 /**
  * The web app's top bar, shrunk for a phone: logo, feedback, the theme
  * switch and the point total — plus the offline strip under it.
  */
-export function AppHeader() {
+export function AppHeader({ onFeedback }: { onFeedback: () => void }) {
   const { c, tone, isDark, setPreference } = useTheme();
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
   const online = useOnline();
-  const pathname = usePathname();
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <View style={{ backgroundColor: c.surface, paddingTop: insets.top, borderBottomWidth: 1, borderBottomColor: c.lineStrong }}>
@@ -32,7 +27,7 @@ export function AppHeader() {
         <View style={{ flex: 1 }} />
 
         <Pressable
-          onPress={() => setFeedbackOpen(true)}
+          onPress={onFeedback}
           accessibilityLabel="Send feedback"
           hitSlop={4}
           style={({ pressed }) => ({
@@ -104,7 +99,6 @@ export function AppHeader() {
         </View>
       )}
 
-      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} page={pathname} />
     </View>
   );
 }

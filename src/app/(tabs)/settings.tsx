@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import Constants from "expo-constants";
 import {
@@ -95,18 +95,13 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plannerBusy, setPlannerBusy] = useState(false);
-  const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
+  const [remindersOn, setRemindersOn] = useState<boolean>(remindersEnabled);
   const [testSent, setTestSent] = useState(false);
-  const [autoUpdate, setAutoUpdateState] = useState<boolean | null>(null);
+  const [autoUpdate, setAutoUpdateState] = useState<boolean>(autoUpdateEnabled);
   const [checkedOnce, setCheckedOnce] = useState(false);
   const update = useUpdateState();
 
   const zones = useMemo(() => allTimezones(user.timezone).map((z) => ({ value: z, label: z })), [user.timezone]);
-
-  useEffect(() => {
-    remindersEnabled().then(setRemindersOn);
-    autoUpdateEnabled().then(setAutoUpdateState);
-  }, []);
 
   const dirty =
     timezone !== user.timezone ||

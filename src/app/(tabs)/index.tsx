@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Alert, View } from "react-native";
 import { List, Map as MapIcon, Plus } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Habit, HabitRequest } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
-import { useFocusReload } from "@/lib/useFocusReload";
+import { invalidate, keys, useHabits, useRefreshOnFocus } from "@/lib/queries";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { HabitDetails } from "@/components/HabitDetails";
 import { HabitForm } from "@/components/HabitForm";
@@ -25,36 +25,30 @@ type Mode = "closed" | "view" | "create" | "edit";
 export default function RoadmapScreen() {
   const { c } = useTheme();
   const { refreshUser } = useAuth();
-  const [habits, setHabits] = useState<Habit[] | null>(null);
+  const habitsQuery = useHabits();
+  useRefreshOnFocus(keys.habits);
+  const habits = habitsQuery.data ?? null;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>("closed");
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = usePersistentState<View_>("roadmapView", "map");
 
-  const reload = useCallback(
-    () =>
-      api<Habit[]>("/api/habits").then((data) => {
-        setHabits(data);
-        setError(null);
-      }),
-    [],
-  );
-  const onLoadError = useCallback((err: unknown) => setError(errorMessage(err)), []);
-  useFocusReload(reload, onLoadError);
+  const reload = () => habitsQuery.refetch();
 
   const selected = habits?.find((h) => h.id === selectedId) ?? null;
 
   async function createHabit(request: HabitRequest) {
     await api("/api/habits", { method: "POST", body: request });
     setMode("closed");
-    await reload();
+    // Habits feed the check-in and the plan too.
+    await invalidate(keys.habits, keys.today);
   }
 
   async function updateHabit(request: HabitRequest) {
     if (!selected) return;
     await api(`/api/habits/${selected.id}`, { method: "PUT", body: request });
     setMode("view");
-    await reload();
+    await invalidate(keys.habits, keys.today);
   }
 
   function deleteHabit() {
@@ -69,7 +63,7 @@ export default function RoadmapScreen() {
             await api(`/api/habits/${selected.id}`, { method: "DELETE" });
             setMode("closed");
             setSelectedId(null);
-            await Promise.all([reload(), refreshUser()]);
+            await Promise.all([invalidate(keys.habits, keys.today), refreshUser()]);
           } catch (err) {
             setError(errorMessage(err));
           }
@@ -79,9 +73,9 @@ export default function RoadmapScreen() {
   }
 
   if (!habits) {
-    return error ? (
+    return habitsQuery.error ? (
       <Screen onRefresh={reload}>
-        <Banner>{error}</Banner>
+        <Banner>{errorMessage(habitsQuery.error)}</Banner>
       </Screen>
     ) : (
       <SkeletonScreen />

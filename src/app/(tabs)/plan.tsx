@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -15,10 +15,10 @@ import {
   type PlanDay,
   type PlanShiftResult,
   type TodayEntry,
-  type TodayResponse,
 } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { useFocusReload } from "@/lib/useFocusReload";
+import { invalidate, keys, useHabits, usePlanDay, useRefreshOnFocus, useToday } from "@/lib/queries";
+import { queryClient } from "@/lib/queryClient";
 import { BlockFields, BlockRow, DAY_MINUTES, NowLine, ShiftBar } from "@/components/PlanParts";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn, IconBtn } from "@/components/ui/Button";
@@ -94,9 +94,13 @@ function Planner() {
   const { refreshUser } = useAuth();
   const user = useUser();
 
-  const [day, setDay] = useState<PlanDay | null>(null);
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [today, setToday] = useState<TodayResponse | null>(null);
+  // The day being looked at; null = the user's logical today.
+  const [date, setDate] = useState<string | null>(null);
+  const dayQuery = usePlanDay(date);
+  const day = dayQuery.data ?? null;
+  const habits = useHabits().data ?? [];
+  const today = useToday().data ?? null;
+  useRefreshOnFocus(keys.plan(date), keys.habits, keys.today);
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState<PlanBlock | null>(null);
   const [selecting, setSelecting] = useState(false);
@@ -113,29 +117,11 @@ function Planner() {
     return () => clearInterval(id);
   }, []);
 
-  // The day being looked at, so a refresh reloads it rather than jumping
-  // back to today. Null until the first load, which asks for today.
-  const shownDate = useRef<string | null>(null);
-  const load = useCallback(
-    (date: string | null) =>
-      api<PlanDay>(`/api/plan${date ? `?date=${date}` : ""}`).then((data) => {
-        shownDate.current = data.date;
-        setDay(data);
-      }),
-    [],
-  );
-
-  const reload = useCallback(
-    () =>
-      Promise.all([
-        load(shownDate.current),
-        api<Habit[]>("/api/habits").then(setHabits).catch(() => {}),
-        api<TodayResponse>("/api/checkins/today").then(setToday).catch(() => {}),
-      ]).then(() => setError(null)),
-    [load],
-  );
-  const onLoadError = useCallback((err: unknown) => setError(errorMessage(err, "Could not load your plan")), []);
-  useFocusReload(reload, onLoadError);
+  const reload = () => invalidate(keys.plan(date), keys.habits, keys.today);
+  /** Writes a fresh copy of the day being looked at into the cache. */
+  const setDay = (next: PlanDay) => queryClient.setQueryData(keys.plan(date), next);
+  /** Asks the server for the day being looked at again. */
+  const refetchDay = () => invalidate(keys.plan(date));
 
   const blocks = useMemo(() => day?.blocks ?? [], [day]);
   const slots = useMemo(() => toSlots(blocks), [blocks]);
@@ -181,8 +167,8 @@ function Planner() {
     });
 
   const patchBlock = (id: number, patch: Partial<PlanBlock>) =>
-    setDay((current) =>
-      current === null ? current : { ...current, blocks: current.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) },
+    queryClient.setQueryData<PlanDay>(keys.plan(date), (current) =>
+      current && { ...current, blocks: current.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) },
     );
 
   function stopSelecting() {
@@ -190,16 +176,17 @@ function Planner() {
     setSelectedIds(new Set());
   }
 
-  const goTo = (date: string) => {
+  const goTo = (next: string) => {
     stopSelecting();
-    return run(() => load(date));
+    // Today keeps one cache entry however it is reached.
+    setDate(day && next === day.today ? null : next);
   };
 
   async function addBlock(title: string, endMinute: number, habitId: number | null): Promise<boolean> {
     if (!day) return false;
     const ok = await run(async () => {
       await api<PlanBlock>(`/api/plan?date=${day.date}`, { method: "POST", body: { title, endMinute, habitId } });
-      await load(day.date);
+      await refetchDay();
       return true;
     });
     return ok === true;
@@ -209,7 +196,7 @@ function Planner() {
     if (!day) return false;
     const ok = await run(async () => {
       await api<PlanBlock>(`/api/plan/${id}`, { method: "PUT", body: { title, endMinute, habitId } });
-      await load(day.date);
+      await refetchDay();
       setEditing(null);
       return true;
     });
@@ -219,7 +206,10 @@ function Planner() {
   /** A preference, not a plan change: lands at once, bounces back on failure. */
   async function toggleMuted(habit: Habit) {
     const muted = !habit.plannerMuted;
-    const patch = (value: boolean) => setHabits((cur) => cur.map((h) => (h.id === habit.id ? { ...h, plannerMuted: value } : h)));
+    const patch = (value: boolean) =>
+      queryClient.setQueryData<Habit[]>(keys.habits, (cur) =>
+        cur?.map((h) => (h.id === habit.id ? { ...h, plannerMuted: value } : h)),
+      );
     patch(muted);
     try {
       await api<Habit>(`/api/habits/${habit.id}/planner-muted`, { method: "PUT", body: { muted } });
@@ -273,7 +263,7 @@ function Planner() {
         onPress: () =>
           void run(async () => {
             await api(`/api/plan/${block.id}`, { method: "DELETE" });
-            await load(day.date);
+            await refetchDay();
           }),
       },
     ]);
@@ -306,15 +296,13 @@ function Planner() {
         ? `${name} was already counted for today`
         : `${name} checked in · ${result.earnedPoints > 0 ? "+" : ""}${result.earnedPoints} points`,
     );
-    void Promise.all([api<TodayResponse>("/api/checkins/today"), refreshUser()])
-      .then(([fresh]) => setToday(fresh))
-      .catch(() => {});
+    void Promise.all([invalidate(keys.today, keys.habits, ["history"]), refreshUser()]).catch(() => {});
   }
 
   if (!day) {
-    return error ? (
+    return dayQuery.error ? (
       <Screen onRefresh={reload}>
-        <Banner>{error}</Banner>
+        <Banner>{errorMessage(dayQuery.error, "Could not load your plan")}</Banner>
       </Screen>
     ) : (
       <SkeletonScreen cards={5} />

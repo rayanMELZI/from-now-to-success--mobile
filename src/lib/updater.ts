@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 import FntsUpdater from "../../modules/fnts-updater";
-import { readJson, writeJson } from "./storage";
+import { loadJson, saveJson } from "./storage";
 
 /**
  * Self-updates from GitHub releases, the way the Game Time Limiter app does:
@@ -74,8 +74,8 @@ export function isNewer(candidate: string, current: string): boolean {
   return false;
 }
 
-export const autoUpdateEnabled = async () => (await readJson<boolean>(AUTO_KEY)) !== false;
-export const setAutoUpdate = (on: boolean) => writeJson(AUTO_KEY, on);
+export const autoUpdateEnabled = () => loadJson<boolean>(AUTO_KEY) !== false;
+export const setAutoUpdate = (on: boolean) => saveJson(AUTO_KEY, on);
 
 /**
  * Asks GitHub for the latest release. Throttled to once every few hours

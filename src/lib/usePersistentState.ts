@@ -1,29 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
-import { readJson, writeJson } from "./storage";
+import { useCallback, useState } from "react";
+import { loadJson, saveJson } from "./storage";
 
 /**
  * useState that survives a restart — for preferences like "map or list", not
- * for data. The default shows until the saved value has been read back.
+ * for data. Storage is synchronous, so the saved value is there on the first
+ * render.
  */
 export function usePersistentState<T>(key: string, initial: T): [T, (next: T) => void] {
-  const [value, setValue] = useState<T>(initial);
-
-  useEffect(() => {
-    let alive = true;
-    readJson<T>(`fnts.pref:${key}`).then((saved) => {
-      if (alive && saved !== null) setValue(saved);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
+  const storageKey = `fnts.pref:${key}`;
+  const [value, setValue] = useState<T>(() => loadJson<T>(storageKey) ?? initial);
 
   const set = useCallback(
     (next: T) => {
       setValue(next);
-      void writeJson(`fnts.pref:${key}`, next);
+      saveJson(storageKey, next);
     },
-    [key],
+    [storageKey],
   );
 
   return [value, set];
