@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import {
   Ban,
@@ -12,7 +12,7 @@ import {
   Sprout,
   Zap,
 } from "lucide-react-native";
-import { readJson, writeJson } from "@/lib/storage";
+import { loadJson, saveJson } from "@/lib/storage";
 import { tw, useTheme } from "@/lib/theme";
 import { Btn } from "./ui/Button";
 import { Sheet } from "./ui/Sheet";
@@ -147,18 +147,12 @@ export const useOnboarding = () => useContext(OnboardingContext);
 
 /** Shows the tour once per account, and on demand from Settings. */
 export function OnboardingProvider({ userId, children }: { userId: number; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
   const key = `fnts_guide_seen_${userId}`;
-
-  useEffect(() => {
-    readJson<boolean>(key).then((seen) => {
-      if (!seen) setOpen(true);
-    });
-  }, [key]);
+  const [open, setOpen] = useState(() => loadJson<boolean>(key) !== true);
 
   const close = useCallback(() => {
     setOpen(false);
-    void writeJson(key, true);
+    saveJson(key, true);
   }, [key]);
 
   const show = useCallback(() => setOpen(true), []);

@@ -1,6 +1,6 @@
 import { API_URL } from "./config";
 import { reportReachable, reportUnreachable } from "./offline";
-import { readJson, removeByPrefix, writeJson } from "./storage";
+import { clearQueryCache } from "./queryClient";
 import type { UserInfo } from "./types";
 
 /**
@@ -56,16 +56,11 @@ async function send(path: string, init: RequestInit): Promise<Response> {
   }
 }
 
-/* ------------------------------------------------------------ offline cache */
-
 /**
- * Every successful GET is kept, so the app still opens on its last known
- * state with no signal — the job the service worker does for the web app.
- * Writes are never queued: they need the server to be honest about points.
+ * Cached screens belong to one account; never let them outlive it. The
+ * offline copy of every screen now lives in the persisted query cache.
  */
-const CACHE_PREFIX = "fnts.cache:";
-
-export const clearCachedData = () => removeByPrefix(CACHE_PREFIX);
+export const clearCachedData = async () => clearQueryCache();
 
 /* ------------------------------------------------------------------ refresh */
 
@@ -109,16 +104,7 @@ export async function api<T>(
     });
 
   const tokenUsed = accessToken;
-  let res: Response;
-  try {
-    res = await doFetch();
-  } catch (err) {
-    if (method === "GET" && isOfflineError(err)) {
-      const cached = await readJson<T>(CACHE_PREFIX + path);
-      if (cached !== null) return cached;
-    }
-    throw err;
-  }
+  let res = await doFetch();
 
   // Expired access token: refresh once and retry — unless a parallel request
   // already swapped the token in, in which case retrying with it is enough.
@@ -144,9 +130,7 @@ export async function api<T>(
 
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  const data = (text ? JSON.parse(text) : undefined) as T;
-  if (method === "GET") void writeJson(CACHE_PREFIX + path, data);
-  return data;
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /* --------------------------------------------------------------------- auth */

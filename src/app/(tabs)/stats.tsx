@@ -1,12 +1,12 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import Svg, { G, Rect, Text as SvgText } from "react-native-svg";
 import { Ban, Flame } from "lucide-react-native";
-import { api, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { useAuth, useUser } from "@/lib/auth";
-import { habitRisk, type Habit, type HistoryDay } from "@/lib/types";
+import { keys, useHabits, useHistory, useRefreshOnFocus } from "@/lib/queries";
+import { habitRisk, type HistoryDay } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { useFocusReload } from "@/lib/useFocusReload";
 import { GaugeBar } from "@/components/GaugeBar";
 import { RiskBadge } from "@/components/HabitBits";
 import { Banner, Card, Chip } from "@/components/ui/Card";
@@ -152,21 +152,16 @@ export default function StatsScreen() {
   const { c } = useTheme();
   const { refreshUser } = useAuth();
   const user = useUser();
-  const [history, setHistory] = useState<HistoryDay[] | null>(null);
-  const [habits, setHabits] = useState<Habit[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const historyQuery = useHistory(30);
+  const habitsQuery = useHabits();
+  useRefreshOnFocus(keys.history(30), keys.habits);
+  const history = historyQuery.data;
+  const habits = habitsQuery.data;
+  const loadError = historyQuery.error ?? habitsQuery.error;
+  const error = loadError ? errorMessage(loadError) : null;
 
-  const reload = useCallback(
-    () =>
-      Promise.all([
-        api<HistoryDay[]>("/api/checkins/history?days=30").then(setHistory),
-        api<Habit[]>("/api/habits").then(setHabits),
-        refreshUser().catch(() => {}),
-      ]).then(() => setError(null)),
-    [refreshUser],
-  );
-  const onLoadError = useCallback((err: unknown) => setError(errorMessage(err)), []);
-  useFocusReload(reload, onLoadError);
+  const reload = () =>
+    Promise.all([historyQuery.refetch(), habitsQuery.refetch(), refreshUser().catch(() => {})]);
 
   if (!history || !habits) {
     return error ? (
@@ -186,7 +181,6 @@ export default function StatsScreen() {
   return (
     <Screen onRefresh={reload}>
       <ScreenHeader title="Your progress" subtitle="Points, streaks and the last 30 days." />
-      {error && <Banner>{error}</Banner>}
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         <StatTile label="Total points" value={String(user.totalPoints)} />

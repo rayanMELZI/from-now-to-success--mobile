@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { readJson, writeJson } from "./storage";
+import { loadJson, saveJson } from "./storage";
 import type { UserInfo } from "./types";
 
 /**
@@ -35,9 +35,9 @@ export function useOnline(): boolean {
 const USER_KEY = "fnts.lastUser";
 
 /**
- * The profile last shown on screen, so a cold start with no network opens the
- * app on cached data instead of the login screen. The session itself lives in
- * the native cookie store, never here.
+ * The profile last shown on screen. The app opens straight onto it (and the
+ * cached screens) while the session refreshes in the background. The session
+ * itself lives in the native cookie store, never here.
  */
-export const rememberUser = (user: UserInfo | null) => writeJson(USER_KEY, user);
-export const recallUser = () => readJson<UserInfo>(USER_KEY);
+export const rememberUser = (user: UserInfo | null) => saveJson(USER_KEY, user);
+export const recallUser = () => loadJson<UserInfo>(USER_KEY);

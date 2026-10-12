@@ -8,6 +8,7 @@ import {
 } from "react";
 import * as apiClient from "./api";
 import { recallUser, rememberUser } from "./offline";
+import { prefetchEssentials } from "./queries";
 import type { UserInfo } from "./types";
 
 interface AuthState {
@@ -26,55 +27,67 @@ const AuthContext = createContext<AuthState | null>(null);
 /**
  * Who is signed in. Navigation is not done here: the root layout guards its
  * screens on `user`, so setting it to null is all "log out" needs to do.
+ *
+ * Opening the app never waits on the network: whoever was signed in last is
+ * shown straight away, with their cached screens, while the session is
+ * refreshed in the background. Only a refresh the server actually refuses
+ * signs them out — no signal is not a reason to.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<UserInfo | null>(null);
-  const [profile, setProfile] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stored] = useState(recallUser);
+  const [user, setUserState] = useState<UserInfo | null>(stored);
+  const [profile, setProfile] = useState<UserInfo | null>(stored);
+  // Only a first launch (nobody remembered) has to wait for the answer.
+  const [loading, setLoading] = useState(stored === null);
 
   const setUser = useCallback((next: UserInfo | null) => {
     setUserState(next);
     if (next) setProfile(next);
+    rememberUser(next);
   }, []);
 
-  // On launch, restore the session from the refresh cookie.
   useEffect(() => {
+    if (stored) prefetchEssentials();
     apiClient
       .tryRefresh()
-      .then((restored) => {
-        setUser(restored);
-        void rememberUser(restored);
+      .then(async (restored) => {
+        if (restored) {
+          setUser(restored);
+        } else if (stored) {
+          // The server refused the session: this account's cache must go too.
+          await apiClient.clearCachedData();
+          setUser(null);
+        }
       })
-      // No network: open on the last account this phone showed.
-      .catch(async () => setUser(await recallUser()))
+      .catch(() => {
+        /* offline: keep showing the remembered account */
+      })
       .finally(() => setLoading(false));
-  }, [setUser]);
+  }, [stored, setUser]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const loggedIn = await apiClient.login(email, password);
-    setUser(loggedIn);
-    void rememberUser(loggedIn);
-  }, [setUser]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setUser(await apiClient.login(email, password));
+      prefetchEssentials();
+    },
+    [setUser],
+  );
 
   const register = useCallback(
     async (username: string, email: string, password: string) => {
-      const registered = await apiClient.register(username, email, password);
-      setUser(registered);
-      void rememberUser(registered);
+      setUser(await apiClient.register(username, email, password));
+      prefetchEssentials();
     },
     [setUser],
   );
 
   const logout = useCallback(async () => {
     await apiClient.logout();
-    await rememberUser(null);
     setUser(null);
   }, [setUser]);
 
   const refreshUser = useCallback(async () => {
-    const fresh = await apiClient.api<UserInfo>("/api/users/me");
-    setUser(fresh);
-    void rememberUser(fresh);
+    setUser(await apiClient.api<UserInfo>("/api/users/me"));
   }, [setUser]);
 
   return (
