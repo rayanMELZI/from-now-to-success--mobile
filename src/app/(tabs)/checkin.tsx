@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ArrowUpDown, Ban, Check, LayoutGrid, Rows3, Sprout, Trophy } from "lucide-react-native";
@@ -15,7 +15,8 @@ import {
   type TodayResponse,
 } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { useFocusReload } from "@/lib/useFocusReload";
+import { invalidate, keys, useRefreshOnFocus, useToday } from "@/lib/queries";
+import { queryClient } from "@/lib/queryClient";
 import { usePersistentState } from "@/lib/usePersistentState";
 import {
   AnsweredStatus,
@@ -71,11 +72,72 @@ function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
+/**
+ * One timer with its own clock. Only this card re-renders every second —
+ * the rest of the check-in screen stays still.
+ */
+function TickingTimer({
+  entry,
+  skewMs,
+  busy,
+  draft,
+  onSlip,
+  onDraftChange,
+  onConfirm,
+  onCancel,
+  onMilestone,
+}: {
+  entry: TimerEntry;
+  skewMs: number;
+  busy: boolean;
+  draft: FallDraft | null;
+  onSlip: (serverNowMs: number) => void;
+  onDraftChange: (draft: FallDraft) => void;
+  onConfirm: (draft: FallDraft) => void;
+  onCancel: () => void;
+  onMilestone: () => void;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const serverNow = nowMs + skewMs;
+  const elapsed = elapsedOf(entry, serverNow);
+
+  // A milestone only pays once the server sees it: ask again the moment the
+  // clock ticks past one — once per milestone.
+  const banked = useRef(0);
+  useEffect(() => {
+    const next = entry.nextMilestoneSeconds;
+    if (next > 0 && elapsed >= next && banked.current !== next) {
+      banked.current = next;
+      onMilestone();
+    }
+  }, [elapsed, entry.nextMilestoneSeconds, onMilestone]);
+
+  return (
+    <TimerCard
+      entry={entry}
+      elapsed={elapsed}
+      nowMs={serverNow}
+      busy={busy}
+      draft={draft}
+      onSlipClick={() => onSlip(serverNow)}
+      onDraftChange={onDraftChange}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
 export default function CheckinScreen() {
   const { c, isDark } = useTheme();
   const { refreshUser } = useAuth();
   const user = useUser();
-  const [today, setToday] = useState<TodayResponse | null>(null);
+  const todayQuery = useToday();
+  useRefreshOnFocus(keys.today);
+  const today = todayQuery.data ?? null;
   const [missDraft, setMissDraft] = useState<MissDraft | null>(null);
   const [fallDraft, setFallDraft] = useState<FallDraft | null>(null);
   const [result, setResult] = useState<CheckinResult | null>(null);
@@ -83,56 +145,32 @@ export default function CheckinScreen() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
-  const [localOrder, setLocalOrder] = useState<number[] | null>(null);
+  // A rearranged order, valid only for the data it was made on: the next
+  // fetch carries the server's (saved) order and takes over.
+  const [localOrder, setLocalOrder] = useState<{ stamp: number; ids: number[] } | null>(null);
   const [groupBy, setGroupBy] = usePersistentState<GroupBy>("checkinGroupBy", "none");
   const [shape, setShape] = usePersistentState<Shape>("checkinView", "cards");
 
-  // The clocks tick locally; skew corrects a device clock that disagrees
-  // with the server, which owns the real elapsed time.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [skewMs, setSkewMs] = useState(0);
-  const bankedRef = useRef("");
+  // The server owns the real elapsed time; skew corrects a device clock that
+  // disagrees with it.
+  const skewMs = today ? Date.parse(today.serverNow) - todayQuery.dataUpdatedAt : 0;
+  const timers = today?.timers ?? [];
 
-  const reload = useCallback(
-    () =>
-      api<TodayResponse>("/api/checkins/today").then((data) => {
-        setSkewMs(Date.parse(data.serverNow) - Date.now());
-        setToday(data);
-        setLocalOrder(null);
-        setError(null);
-        return data;
-      }),
-    [],
-  );
-  const onLoadError = useCallback((err: unknown) => setError(errorMessage(err)), []);
-  useFocusReload(reload, onLoadError);
+  const reload = () => todayQuery.refetch();
+  const onMilestone = useCallback(() => void invalidate(keys.today), []);
 
-  const timers = useMemo(() => today?.timers ?? [], [today]);
-  const hasTimers = timers.length > 0;
-
-  useEffect(() => {
-    if (!hasTimers) return;
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [hasTimers]);
-
-  // A milestone only pays once the server sees it: ask again the moment a
-  // clock ticks past one — each (habit, milestone) pair triggers one reload.
-  useEffect(() => {
-    const due = timers
-      .filter((t) => t.nextMilestoneSeconds > 0 && elapsedOf(t, nowMs + skewMs) >= t.nextMilestoneSeconds)
-      .map((t) => `${t.habitId}:${t.nextMilestoneSeconds}`)
-      .join(",");
-    if (due && due !== bankedRef.current) {
-      bankedRef.current = due;
-      void reload();
-    }
-  }, [timers, nowMs, skewMs, reload]);
-
-  /** After any answer: the screen, the points in the header, the reminders. */
-  async function settle() {
-    const [fresh] = await Promise.all([reload(), refreshUser()]);
-    void syncReminders(user, fresh);
+  /**
+   * After any answer the screen, the points in the header and the reminders
+   * catch up in the background — the buttons are free again at once.
+   */
+  function settle() {
+    void Promise.all([
+      invalidate(keys.today, keys.habits, ["history"], ["plan"]),
+      refreshUser().catch(() => {}),
+    ]).then(() => {
+      const fresh = queryClient.getQueryData<TodayResponse>(keys.today);
+      void syncReminders(user, fresh);
+    });
   }
 
   async function answer(habitId: number, done: boolean, reason?: string, freeze?: boolean) {
@@ -144,16 +182,12 @@ export default function CheckinScreen() {
         body: { entries: [{ habitId, done, reason: reason || undefined, freeze }] },
       });
       void Haptics.notificationAsync(
-        submission.becameValid.length > 0 || submission.unlocked.length > 0
-          ? Haptics.NotificationFeedbackType.Success
-          : done
-            ? Haptics.NotificationFeedbackType.Success
-            : Haptics.NotificationFeedbackType.Warning,
+        done ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning,
       ).catch(() => {});
       setResult(submission);
       setFallResult(null);
       setMissDraft(null);
-      await settle();
+      settle();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -176,8 +210,7 @@ export default function CheckinScreen() {
       setFallResult(submission);
       setResult(null);
       setFallDraft(null);
-      bankedRef.current = "";
-      await settle();
+      settle();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -186,9 +219,9 @@ export default function CheckinScreen() {
   }
 
   if (!today) {
-    return error ? (
+    return todayQuery.error ? (
       <Screen onRefresh={reload}>
-        <Banner>{error}</Banner>
+        <Banner>{errorMessage(todayQuery.error)}</Banner>
       </Screen>
     ) : (
       <SkeletonScreen />
@@ -197,9 +230,10 @@ export default function CheckinScreen() {
 
   const answered = today.entries.filter((e) => e.todayStatus !== "PENDING");
   const serverPending = today.entries.filter((e) => e.todayStatus === "PENDING");
-  const pending = localOrder
-    ? localOrder.flatMap((id) => serverPending.filter((e) => e.habitId === id))
-    : serverPending;
+  const pending =
+    localOrder && localOrder.stamp === todayQuery.dataUpdatedAt
+      ? localOrder.ids.flatMap((id) => serverPending.filter((e) => e.habitId === id))
+      : serverPending;
 
   /** Moves one habit up or down inside its own section, and saves the order. */
   async function move(habitId: number, delta: number) {
@@ -209,13 +243,13 @@ export default function CheckinScreen() {
     if (to < 0 || to >= ids.length) return;
     if (groupKey(pending[to], groupBy) !== groupKey(pending[from], groupBy)) return;
     const next = moveItem(ids, from, to);
-    setLocalOrder(next);
+    setLocalOrder({ stamp: todayQuery.dataUpdatedAt, ids: next });
     void Haptics.selectionAsync().catch(() => {});
     try {
       await api("/api/habits/order", { method: "PUT", body: { habitIds: next } });
     } catch (err) {
       setError(errorMessage(err, "Could not save the order"));
-      await reload();
+      setLocalOrder(null);
     }
   }
 
@@ -325,19 +359,19 @@ export default function CheckinScreen() {
         <Disclosure title="Timers" count={timers.length} defaultOpen storageKey="checkin-timers" summary="clocks still running">
           <View style={{ gap: 12 }}>
             {timers.map((timer) => (
-              <TimerCard
+              <TickingTimer
                 key={timer.habitId}
                 entry={timer}
-                elapsed={elapsedOf(timer, nowMs + skewMs)}
-                nowMs={nowMs + skewMs}
+                skewMs={skewMs}
                 busy={busyId === timer.habitId}
                 draft={fallDraft?.habitId === timer.habitId ? fallDraft : null}
-                onSlipClick={() =>
-                  setFallDraft({ habitId: timer.habitId, reason: "", when: "now", at: nowMs + skewMs })
+                onSlip={(serverNow) =>
+                  setFallDraft({ habitId: timer.habitId, reason: "", when: "now", at: serverNow })
                 }
                 onDraftChange={setFallDraft}
                 onConfirm={confirmFall}
                 onCancel={() => setFallDraft(null)}
+                onMilestone={onMilestone}
               />
             ))}
           </View>
