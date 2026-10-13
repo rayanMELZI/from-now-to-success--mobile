@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePerfFocus } from "@/lib/perf";
 import { Pressable, View } from "react-native";
 import Constants from "expo-constants";
 import {
@@ -82,6 +83,7 @@ const WEEK_DAYS: Option<number>[] = ["Monday", "Tuesday", "Wednesday", "Thursday
 );
 
 export default function SettingsScreen() {
+  usePerfFocus("settings");
   const { c, tone, preference, setPreference } = useTheme();
   const { refreshUser, logout } = useAuth();
   const user = useUser();

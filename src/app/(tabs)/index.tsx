@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
 import { List, Map as MapIcon, Plus } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
@@ -23,6 +24,7 @@ type View_ = "map" | "list";
 type Mode = "closed" | "view" | "create" | "edit";
 
 export default function RoadmapScreen() {
+  usePerfFocus("roadmap");
   const { c } = useTheme();
   const { refreshUser } = useAuth();
   const habitsQuery = useHabits();

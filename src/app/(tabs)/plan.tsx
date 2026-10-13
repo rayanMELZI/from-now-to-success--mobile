@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -84,6 +85,7 @@ const nowMinuteOf = () => {
 };
 
 export default function PlanScreen() {
+  usePerfFocus("plan");
   const user = useUser();
   if (!user.plannerEnabled) return <PlannerOff />;
   return <Planner />;

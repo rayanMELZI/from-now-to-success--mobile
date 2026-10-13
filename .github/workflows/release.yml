@@ -11,6 +11,19 @@ on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Test builds only: backend URL (e.g. http://10.0.2.2:3000 for a local stack seen from the emulator)"
+        required: false
+        default: ""
+      emulator:
+        description: "Test builds only: also build for x86_64 so it runs on the emulator"
+        type: boolean
+        default: false
+      perf_log:
+        description: "Test builds only: log tab-switch timings to logcat (tag ReactNativeJS, prefix [perf])"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -54,8 +67,20 @@ jobs:
         if: github.ref_type == 'tag'
         run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
 
+      - name: Point a test build at another backend
+        if: github.ref_type != 'tag' && inputs.api_url != ''
+        run: echo "EXPO_PUBLIC_API_URL=${{ inputs.api_url }}" >> "$GITHUB_ENV"
+
+      - name: Turn on the timing probe for a test build
+        if: github.ref_type != 'tag' && inputs.perf_log
+        run: echo "EXPO_PUBLIC_PERF_LOG=1" >> "$GITHUB_ENV"
+
       - name: Generate the native Android project
         run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Allow plain http for a local test backend
+        if: github.ref_type != 'tag' && startsWith(inputs.api_url, 'http://')
+        run: sed -i 's/<application /<application android:usesCleartextTraffic="true" /' android/app/src/main/AndroidManifest.xml
 
       - name: Build the signed APK
         working-directory: android
@@ -64,12 +89,12 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Only the CPUs real phones use; a test build for the emulator adds x86_64.
+          ARCHS: ${{ (github.ref_type != 'tag' && inputs.emulator) && 'arm64-v8a,armeabi-v7a,x86_64' || 'arm64-v8a,armeabi-v7a' }}
         run: |
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.keystore"
-          # Only the CPUs real phones use: x86 is emulators only, and each ABI
-          # carries its own copy of every native library.
           ./gradlew assembleRelease --no-daemon \
-            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+            -PreactNativeArchitectures="$ARCHS" \
             -PFNTS_STORE_FILE="$RUNNER_TEMP/release.keystore" \
             -PFNTS_STORE_PASSWORD="$STORE_PASSWORD" \
             -PFNTS_KEY_ALIAS="$KEY_ALIAS" \
