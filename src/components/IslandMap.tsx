@@ -19,7 +19,7 @@ import {
 } from "@shopify/react-native-skia";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react-native";
 import { habitRisk, type Habit } from "@/lib/types";
-import { tw, useTheme } from "@/lib/theme";
+import { tw, useTheme, type Palette } from "@/lib/theme";
 import { MAP_ICONS, type MapIconName } from "./mapIcons";
 
 /* ------------------------------------------------------------------ */
@@ -208,13 +208,17 @@ function HabitIsland({
   selected,
   at,
   fonts,
+  c,
+  isDark,
 }: {
   habit: Habit;
   selected: boolean;
   at: Point;
   fonts: Fonts;
+  /** The theme, passed in: React context does not reach inside a Skia canvas. */
+  c: Palette;
+  isDark: boolean;
 }) {
-  const { c, isDark } = useTheme();
   const locked = habit.status === "LOCKED";
   const valid = habit.status === "VALID";
   const risk = habitRisk(habit);
@@ -291,8 +295,17 @@ function HabitIsland({
   );
 }
 
-function AnchorIsland({ label, at, fonts }: { label: "now" | "success"; at: Point; fonts: Fonts }) {
-  const { isDark } = useTheme();
+function AnchorIsland({
+  label,
+  at,
+  fonts,
+  isDark,
+}: {
+  label: "now" | "success";
+  at: Point;
+  fonts: Fonts;
+  isDark: boolean;
+}) {
   const blob = useMemo(
     () => Skia.Path.MakeFromSVGString(blobPath(label === "now" ? 5 : 9, ANCHOR_W, NODE_H))!,
     [label],
@@ -340,7 +353,7 @@ export function IslandMap({
   selectedId: number | null;
   onSelect: (habit: Habit) => void;
 }) {
-  const { c } = useTheme();
+  const { c, isDark } = useTheme();
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const fonts = useMemo<Fonts>(
     () => ({
@@ -519,8 +532,8 @@ export function IslandMap({
                     {!edge.flowing && <DashPathEffect intervals={[6, 6]} />}
                   </Path>
                 ))}
-                <AnchorIsland label="now" at={positions.get("now")!} fonts={fonts} />
-                <AnchorIsland label="success" at={positions.get("success")!} fonts={fonts} />
+                <AnchorIsland label="now" at={positions.get("now")!} fonts={fonts} isDark={isDark} />
+                <AnchorIsland label="success" at={positions.get("success")!} fonts={fonts} isDark={isDark} />
                 {habits.map((habit) => (
                   <HabitIsland
                     key={habit.id}
@@ -528,6 +541,8 @@ export function IslandMap({
                     selected={habit.id === selectedId}
                     at={positions.get(String(habit.id))!}
                     fonts={fonts}
+                    c={c}
+                    isDark={isDark}
                   />
                 ))}
               </Group>
