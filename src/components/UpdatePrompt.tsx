@@ -6,6 +6,7 @@ import {
   UPDATES_SUPPORTED,
   autoUpdateEnabled,
   checkForUpdate,
+  autoInstallUpdate,
   installUpdate,
   useUpdateState,
 } from "@/lib/updater";
@@ -31,7 +32,7 @@ export function UpdatePrompt() {
       const autoOn = autoUpdateEnabled();
       setAuto(autoOn);
       const release = await checkForUpdate();
-      if (release && autoOn) void installUpdate();
+      if (release && autoOn) void autoInstallUpdate();
     };
     // Never ahead of the first screen: the check waits until it is drawn.
     const task = InteractionManager.runAfterInteractions(() => void run());
@@ -88,7 +89,8 @@ export function UpdatePrompt() {
           <Txt variant="heading">Version {update.latest.version} is out</Txt>
         </View>
         <Txt variant="small" color="soft">
-          You have {CURRENT_VERSION}. The update keeps all your data — it lives on the server.
+          You have {CURRENT_VERSION}. The update keeps all your data — it lives on the server. The first
+          time, Android asks you to allow updates from this app.
         </Txt>
         {update.latest.notes ? (
           <Txt variant="small" numberOfLines={12}>
