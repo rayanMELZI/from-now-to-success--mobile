@@ -4,17 +4,18 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS, useDerivedValue, useSharedValue, withTiming } from "react-native-reanimated";
 import {
   Canvas,
-  DashPathEffect,
+  ClipOp,
   Group,
-  ImageSVG,
   matchFont,
-  Path,
+  PaintStyle,
+  Picture,
   Points,
-  Rect,
   Skia,
-  Text as SkiaText,
   vec,
+  type SkCanvas,
   type SkFont,
+  type SkPaint,
+  type SkPicture,
   type SkSVG,
 } from "@shopify/react-native-skia";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react-native";
@@ -150,9 +151,10 @@ function blobPath(seed: number, w: number, h: number, inset = 2): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Drawing — one Skia canvas on the GPU. Panning and pinching only     */
-/* change the canvas transform (reanimated shared values), so moving   */
-/* the map never re-renders React or re-rasterizes a view.             */
+/* Drawing — the whole map is recorded once into a Skia picture.       */
+/* Panning and pinching only replay that picture under a new transform */
+/* (reanimated shared values): no React render, no re-drawing of 80    */
+/* islands and their icons on every frame.                             */
 /* ------------------------------------------------------------------ */
 
 const FONT_FAMILY = Platform.select({ ios: "Helvetica", default: "sans-serif" });
@@ -175,55 +177,71 @@ function mapIcon(name: MapIconName, color: string): SkSVG | null {
   return iconCache.get(key) ?? null;
 }
 
-/** One piece of a centred row: an icon or a run of text. */
-type RowItem = { icon: MapIconName; color: string; size: number } | { text: string; color: string };
-
-/** Lays a row of icons and words out side by side, centred on `cx`. */
-function Row({ items, cx, y, font }: { items: RowItem[]; cx: number; y: number; font: SkFont }) {
-  const GAP = 4;
-  const widths = items.map((it) => ("icon" in it ? it.size : font.measureText(it.text).width));
-  const total = widths.reduce((a, b) => a + b, 0) + GAP * (items.length - 1);
-  const starts: number[] = [];
-  for (let i = 0, x = cx - total / 2; i < items.length; x += widths[i] + GAP, i++) starts.push(x);
-  return (
-    <>
-      {items.map((it, i) =>
-        "icon" in it ? (
-          <ImageSVG key={i} svg={mapIcon(it.icon, it.color)} x={starts[i]} y={y - it.size + 1} width={it.size} height={it.size} />
-        ) : (
-          <SkiaText key={i} text={it.text} x={starts[i]} y={y} font={font} color={it.color} />
-        ),
-      )}
-    </>
-  );
-}
-
 interface Fonts {
   title: SkFont;
   small: SkFont;
 }
 
-function HabitIsland({
-  habit,
-  selected,
-  at,
-  fonts,
-  c,
-  isDark,
-}: {
-  habit: Habit;
-  selected: boolean;
-  at: Point;
+/** One piece of a centred row: an icon or a run of text. */
+type RowItem = { icon: MapIconName; color: string; size: number } | { text: string; color: string };
+
+function paintOf(color: string, stroke?: number): SkPaint {
+  const paint = Skia.Paint();
+  paint.setAntiAlias(true);
+  paint.setColor(Skia.Color(color));
+  if (stroke !== undefined) {
+    paint.setStyle(PaintStyle.Stroke);
+    paint.setStrokeWidth(stroke);
+  }
+  return paint;
+}
+
+/** Draws an icon at (x, y) scaled from lucide's 24-unit grid to `size`. */
+function drawIcon(canvas: SkCanvas, name: MapIconName, color: string, x: number, y: number, size: number) {
+  const svg = mapIcon(name, color);
+  if (!svg) return;
+  canvas.save();
+  canvas.translate(x, y);
+  canvas.scale(size / 24, size / 24);
+  canvas.drawSvg(svg, 24, 24);
+  canvas.restore();
+}
+
+/** Lays a row of icons and words out side by side, centred on `cx`, baseline `y`. */
+function drawRow(canvas: SkCanvas, items: RowItem[], cx: number, y: number, font: SkFont) {
+  const GAP = 4;
+  const widths = items.map((it) => ("icon" in it ? it.size : font.measureText(it.text).width));
+  const total = widths.reduce((a, b) => a + b, 0) + GAP * (items.length - 1);
+  let x = cx - total / 2;
+  items.forEach((it, i) => {
+    if ("icon" in it) {
+      // Icons sit on the text's baseline, centred on its x-height.
+      drawIcon(canvas, it.icon, it.color, x, y - it.size * 0.85, it.size);
+    } else {
+      canvas.drawText(it.text, x, y, paintOf(it.color), font);
+    }
+    x += widths[i] + GAP;
+  });
+}
+
+interface DrawInput {
+  habits: Habit[];
+  positions: Map<string, Point>;
+  width: number;
+  height: number;
+  selectedId: number | null;
   fonts: Fonts;
-  /** The theme, passed in: React context does not reach inside a Skia canvas. */
   c: Palette;
   isDark: boolean;
-}) {
+}
+
+function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean, d: DrawInput) {
+  const { c, isDark, fonts } = d;
   const locked = habit.status === "LOCKED";
   const valid = habit.status === "VALID";
   const risk = habitRisk(habit);
   const pct = habit.requiredStreak > 0 ? Math.min(1, habit.gauge / habit.requiredStreak) : 0;
-  const blob = useMemo(() => Skia.Path.MakeFromSVGString(blobPath(habit.id, NODE_W, NODE_H))!, [habit.id]);
+  const blob = Skia.Path.MakeFromSVGString(blobPath(habit.id, NODE_W, NODE_H))!;
 
   const border = selected
     ? tw.amber[500]
@@ -246,11 +264,30 @@ function HabitIsland({
           ? "rgba(110,231,183,0.6)"
           : "rgba(252,211,77,0.6)";
 
+  canvas.save();
+  canvas.translate(at.x, at.y);
+  canvas.drawPath(blob, paintOf(fill));
+  if (!locked && pct > 0) {
+    canvas.save();
+    canvas.clipPath(blob, ClipOp.Intersect, true);
+    canvas.drawRect(Skia.XYWHRect(0, NODE_H * (1 - pct), NODE_W, NODE_H * pct), paintOf(liquid));
+    canvas.restore();
+  }
+  canvas.drawPath(blob, paintOf(border, selected || risk === "critical" ? 3 : 2));
+
   const cx = NODE_W / 2;
-  const nameColor = locked ? c.inkSoft : c.ink;
   const lead: MapIconName | null = locked ? "lock" : habit.habitType === "QUIT" ? "ban" : null;
-  const nameWidth = NODE_W - 36 - (lead ? 17 : 0);
-  const name = fit(habit.name, fonts.title, nameWidth);
+  const name = fit(habit.name, fonts.title, NODE_W - 36 - (lead ? 17 : 0));
+  drawRow(
+    canvas,
+    [
+      ...(lead ? [{ icon: lead, color: lead === "ban" ? tw.red[500] : c.inkSoft, size: 13 }] : []),
+      { text: name, color: locked ? c.inkSoft : c.ink },
+    ],
+    cx,
+    NODE_H / 2 - 3,
+    fonts.title,
+  );
 
   const stats: RowItem[] = locked
     ? [{ text: "locked", color: c.inkFaint }]
@@ -266,72 +303,64 @@ function HabitIsland({
         { icon: "flame", color: tw.orange[500], size: 12 },
         { text: String(habit.currentStreak), color: c.inkSoft },
       ];
-
-  return (
-    <Group transform={[{ translateX: at.x }, { translateY: at.y }]}>
-      <Path path={blob} color={fill} />
-      {!locked && pct > 0 && (
-        <Group clip={blob}>
-          <Rect x={0} y={NODE_H * (1 - pct)} width={NODE_W} height={NODE_H * pct} color={liquid} />
-        </Group>
-      )}
-      <Path
-        path={blob}
-        color={border}
-        style="stroke"
-        strokeWidth={selected || risk === "critical" ? 3 : 2}
-      />
-      <Row
-        items={[
-          ...(lead ? [{ icon: lead, color: lead === "ban" ? tw.red[500] : c.inkSoft, size: 13 }] : []),
-          { text: name, color: nameColor },
-        ]}
-        cx={cx}
-        y={NODE_H / 2 - 3}
-        font={fonts.title}
-      />
-      <Row items={stats} cx={cx} y={NODE_H / 2 + 19} font={fonts.small} />
-    </Group>
-  );
+  drawRow(canvas, stats, cx, NODE_H / 2 + 19, fonts.small);
+  canvas.restore();
 }
 
-function AnchorIsland({
-  label,
-  at,
-  fonts,
-  isDark,
-}: {
-  label: "now" | "success";
-  at: Point;
-  fonts: Fonts;
-  isDark: boolean;
-}) {
-  const blob = useMemo(
-    () => Skia.Path.MakeFromSVGString(blobPath(label === "now" ? 5 : 9, ANCHOR_W, NODE_H))!,
-    [label],
-  );
+function drawAnchor(canvas: SkCanvas, label: "now" | "success", at: Point, d: DrawInput) {
+  const { isDark, fonts } = d;
+  const blob = Skia.Path.MakeFromSVGString(blobPath(label === "now" ? 5 : 9, ANCHOR_W, NODE_H))!;
   const color = isDark ? tw.amber[300] : tw.amber[700];
   const cx = ANCHOR_W / 2;
-  return (
-    <Group transform={[{ translateX: at.x }, { translateY: at.y }]}>
-      <Path path={blob} color={isDark ? "rgba(251,191,36,0.15)" : tw.amber[100]} />
-      <Path path={blob} color="rgba(146,64,14,0.6)" style="stroke" strokeWidth={2} />
-      <ImageSVG
-        svg={mapIcon(label === "now" ? "footprints" : "sparkles", color)}
-        x={cx - 12}
-        y={NODE_H / 2 - 30}
-        width={24}
-        height={24}
-      />
-      <SkiaText
-        text={label}
-        x={cx - fonts.title.measureText(label).width / 2}
-        y={NODE_H / 2 + 18}
-        font={fonts.title}
-        color={isDark ? tw.amber[200] : tw.amber[900]}
-      />
-    </Group>
+  canvas.save();
+  canvas.translate(at.x, at.y);
+  canvas.drawPath(blob, paintOf(isDark ? "rgba(251,191,36,0.15)" : tw.amber[100]));
+  canvas.drawPath(blob, paintOf("rgba(146,64,14,0.6)", 2));
+  drawIcon(canvas, label === "now" ? "footprints" : "sparkles", color, cx - 12, NODE_H / 2 - 30, 24);
+  canvas.drawText(
+    label,
+    cx - fonts.title.measureText(label).width / 2,
+    NODE_H / 2 + 18,
+    paintOf(isDark ? tw.amber[200] : tw.amber[900]),
+    fonts.title,
   );
+  canvas.restore();
+}
+
+/** Records the whole map — paths, islands, labels, icons — into one picture. */
+function drawMap(d: DrawInput): SkPicture {
+  const recorder = Skia.PictureRecorder();
+  const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, d.width, d.height));
+
+  const flowing = paintOf(tw.amber[600], 2.5);
+  const dashed = paintOf(tw.stone[400], 1.8);
+  dashed.setPathEffect(Skia.PathEffect.MakeDash([6, 6], 0));
+  const statusOf = new Map(d.habits.map((h) => [h.id, h.status]));
+  for (const habit of d.habits) {
+    const to = d.positions.get(String(habit.id));
+    if (!to) continue;
+    for (const prereqId of habit.prerequisiteIds) {
+      const from = d.positions.get(String(prereqId));
+      if (!from) continue;
+      const x1 = from.x + NODE_W;
+      const y1 = from.y + NODE_H / 2;
+      const x2 = to.x;
+      const y2 = to.y + NODE_H / 2;
+      const mid = (x2 - x1) / 2;
+      const path = Skia.Path.Make();
+      path.moveTo(x1, y1);
+      path.cubicTo(x1 + mid, y1, x2 - mid, y2, x2, y2);
+      canvas.drawPath(path, statusOf.get(prereqId) === "VALID" ? flowing : dashed);
+    }
+  }
+
+  drawAnchor(canvas, "now", d.positions.get("now")!, d);
+  drawAnchor(canvas, "success", d.positions.get("success")!, d);
+  for (const habit of d.habits) {
+    const at = d.positions.get(String(habit.id));
+    if (at) drawIsland(canvas, habit, at, habit.id === d.selectedId, d);
+  }
+  return recorder.finishRecordingAsPicture();
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,24 +417,10 @@ export function IslandMap({
     return { positions: shifted, width: maxX - minX + PAD * 2, height: maxY - minY + PAD * 2 };
   }, [raw]);
 
-  const edges = useMemo(
-    () =>
-      habits.flatMap((habit) =>
-        habit.prerequisiteIds.flatMap((prereqId) => {
-          const from = positions.get(String(prereqId));
-          const to = positions.get(String(habit.id));
-          if (!from || !to) return [];
-          const x1 = from.x + NODE_W;
-          const y1 = from.y + NODE_H / 2;
-          const x2 = to.x;
-          const y2 = to.y + NODE_H / 2;
-          const mid = (x2 - x1) / 2;
-          const path = Skia.Path.MakeFromSVGString(`M ${x1} ${y1} C ${x1 + mid} ${y1} ${x2 - mid} ${y2} ${x2} ${y2}`)!;
-          const flowing = habits.find((h) => h.id === prereqId)?.status === "VALID";
-          return [{ id: `${prereqId}-${habit.id}`, path, flowing }];
-        }),
-      ),
-    [habits, positions],
+  // The whole map as one recorded picture, rebuilt only when the data changes.
+  const picture = useMemo(
+    () => drawMap({ habits, positions, width, height, selectedId, fonts, c, isDark }),
+    [habits, positions, width, height, selectedId, fonts, c, isDark],
   );
 
   // The dotted chart paper, fixed under the moving islands.
@@ -521,30 +536,7 @@ export function IslandMap({
             <Canvas style={{ flex: 1 }}>
               <Points points={dots} mode="points" color={c.lineStrong} strokeWidth={2.4} strokeCap="round" />
               <Group transform={transform}>
-                {edges.map((edge) => (
-                  <Path
-                    key={edge.id}
-                    path={edge.path}
-                    style="stroke"
-                    color={edge.flowing ? tw.amber[600] : tw.stone[400]}
-                    strokeWidth={edge.flowing ? 2.5 : 1.8}
-                  >
-                    {!edge.flowing && <DashPathEffect intervals={[6, 6]} />}
-                  </Path>
-                ))}
-                <AnchorIsland label="now" at={positions.get("now")!} fonts={fonts} isDark={isDark} />
-                <AnchorIsland label="success" at={positions.get("success")!} fonts={fonts} isDark={isDark} />
-                {habits.map((habit) => (
-                  <HabitIsland
-                    key={habit.id}
-                    habit={habit}
-                    selected={habit.id === selectedId}
-                    at={positions.get(String(habit.id))!}
-                    fonts={fonts}
-                    c={c}
-                    isDark={isDark}
-                  />
-                ))}
+                <Picture picture={picture} />
               </Group>
             </Canvas>
           )}
