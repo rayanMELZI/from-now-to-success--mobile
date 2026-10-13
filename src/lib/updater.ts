@@ -108,6 +108,26 @@ export async function checkForUpdate(force = false): Promise<Release | null> {
   }
 }
 
+/** Versions already tried automatically this session — never retried in a loop. */
+const autoTried = new Set<string>();
+
+/**
+ * The automatic path: installs the latest release once per session, and only
+ * when Android already lets this app install. Otherwise it stays quiet and
+ * the update sheet offers it instead — opening Android's settings is only
+ * ever the answer to a tap.
+ */
+export async function autoInstallUpdate(): Promise<void> {
+  const release = state.latest;
+  if (!release || autoTried.has(release.version)) return;
+  autoTried.add(release.version);
+  if (!FntsUpdater || !FntsUpdater.canRequestInstalls()) {
+    set({ phase: "failed", error: null });
+    return;
+  }
+  await installUpdate();
+}
+
 /** Downloads and installs the latest release (or opens it in the browser). */
 export async function installUpdate(): Promise<void> {
   const release = state.latest ?? (await checkForUpdate(true));
@@ -121,7 +141,7 @@ export async function installUpdate(): Promise<void> {
   if (!FntsUpdater.canRequestInstalls()) {
     set({
       phase: "failed",
-      error: "Allow this app to install updates (the switch that just opened), then tap Update again.",
+      error: "Turn on “Allow from this source” on the page that just opened, come back, then tap Update again.",
     });
     FntsUpdater.openInstallSettings();
     return;
