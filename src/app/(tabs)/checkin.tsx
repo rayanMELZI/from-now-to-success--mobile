@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePerfFocus } from "@/lib/perf";
 import { View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ArrowUpDown, Ban, Check, LayoutGrid, Rows3, Sprout, Trophy } from "lucide-react-native";
@@ -132,6 +133,7 @@ function TickingTimer({
 }
 
 export default function CheckinScreen() {
+  usePerfFocus("checkin");
   const { c, isDark } = useTheme();
   const { refreshUser } = useAuth();
   const user = useUser();

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePerfFocus } from "@/lib/perf";
 import { Pressable, View } from "react-native";
 import Svg, { G, Rect, Text as SvgText } from "react-native-svg";
 import { Ban, Flame } from "lucide-react-native";
@@ -149,6 +150,7 @@ function HistoryChart({ history }: { history: HistoryDay[] }) {
 }
 
 export default function StatsScreen() {
+  usePerfFocus("stats");
   const { c } = useTheme();
   const { refreshUser } = useAuth();
   const user = useUser();

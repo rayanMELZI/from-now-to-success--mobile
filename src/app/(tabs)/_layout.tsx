@@ -8,6 +8,7 @@ import { FeedbackSheet } from "@/components/FeedbackSheet";
 import { OnboardingProvider } from "@/components/OnboardingGuide";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { useUser } from "@/lib/auth";
+import { markTabPress } from "@/lib/perf";
 import { syncReminders } from "@/lib/reminders";
 import { useTheme } from "@/lib/theme";
 
@@ -46,6 +47,7 @@ export default function TabsLayout() {
   return (
     <OnboardingProvider userId={user.id}>
       <Tabs
+        screenListeners={{ tabPress: markTabPress }}
         screenOptions={{
           header: () => <AppHeader onFeedback={() => setFeedbackOpen(true)} />,
           // Tabs out of sight stop re-rendering until they come back.
