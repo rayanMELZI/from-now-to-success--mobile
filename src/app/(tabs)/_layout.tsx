@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { AppState, InteractionManager } from "react-native";
-import { router, Tabs, usePathname } from "expo-router";
+import { AppState, InteractionManager, View } from "react-native";
+import { router, usePathname } from "expo-router";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import * as Notifications from "expo-notifications";
-import { BarChart3, ClipboardList, ListChecks, Map as MapIcon, Settings } from "lucide-react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { FeedbackSheet } from "@/components/FeedbackSheet";
 import { OnboardingProvider } from "@/components/OnboardingGuide";
@@ -45,44 +45,45 @@ export default function TabsLayout() {
 
   return (
     <OnboardingProvider userId={user.id}>
-      <Tabs
-        screenOptions={{
-          header: () => <AppHeader onFeedback={() => setFeedbackOpen(true)} />,
-          // Tabs out of sight stop re-rendering until they come back.
-          freezeOnBlur: true,
-          tabBarActiveTintColor: c.accent,
-          tabBarInactiveTintColor: c.inkFaint,
-          tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.line },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-          sceneStyle: { backgroundColor: c.page },
-        }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{ title: "Roadmap", tabBarIcon: ({ color, size }) => <MapIcon size={size - 2} color={color} /> }}
-        />
-        <Tabs.Screen
-          name="checkin"
-          options={{ title: "Check-in", tabBarIcon: ({ color, size }) => <ListChecks size={size - 2} color={color} /> }}
-        />
-        <Tabs.Screen
-          name="plan"
-          options={{
-            title: "Plan",
-            // Opt-in: no tab at all until the user turns the planner on.
-            href: user.plannerEnabled ? undefined : null,
-            tabBarIcon: ({ color, size }) => <ClipboardList size={size - 2} color={color} />,
+      {/* One header for the whole app, above the tabs rather than inside each. */}
+      <View style={{ flex: 1, backgroundColor: c.page }}>
+        <AppHeader onFeedback={() => setFeedbackOpen(true)} />
+        {/* Android's own tab bar: every tab is built once at startup and a tap
+            just shows it — no JavaScript between the tap and the switch. */}
+        <NativeTabs
+          backgroundColor={c.surface}
+          iconColor={{ default: c.inkFaint, selected: c.accentInk }}
+          labelStyle={{
+            default: { color: c.inkFaint, fontSize: 11 },
+            selected: { color: c.accentInk, fontSize: 11 },
           }}
-        />
-        <Tabs.Screen
-          name="stats"
-          options={{ title: "Stats", tabBarIcon: ({ color, size }) => <BarChart3 size={size - 2} color={color} /> }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{ title: "Settings", tabBarIcon: ({ color, size }) => <Settings size={size - 2} color={color} /> }}
-        />
-      </Tabs>
+          indicatorColor={c.accentSoft}
+          rippleColor={c.accentSoft}
+          labelVisibilityMode="labeled"
+        >
+          <NativeTabs.Trigger name="index">
+            <NativeTabs.Trigger.Icon md="map" />
+            <NativeTabs.Trigger.Label>Roadmap</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="checkin">
+            <NativeTabs.Trigger.Icon md="checklist" />
+            <NativeTabs.Trigger.Label>Check-in</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          {/* Opt-in: no tab at all until the user turns the planner on. */}
+          <NativeTabs.Trigger name="plan" hidden={!user.plannerEnabled}>
+            <NativeTabs.Trigger.Icon md="assignment" />
+            <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="stats">
+            <NativeTabs.Trigger.Icon md="bar_chart" />
+            <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="settings">
+            <NativeTabs.Trigger.Icon md="settings" />
+            <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+        </NativeTabs>
+      </View>
       <UpdatePrompt />
       <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} page={pathname} />
     </OnboardingProvider>
