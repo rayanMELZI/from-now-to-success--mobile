@@ -18,7 +18,7 @@ import {
   type TodayEntry,
 } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { invalidate, keys, useHabits, usePlanDay, useRefreshOnFocus, useToday } from "@/lib/queries";
+import { invalidate, keys, useHabits, usePlanDay, useRefreshOnFocus, useTaskList, useToday } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { TasksView } from "@/components/TasksView";
@@ -130,6 +130,8 @@ function Planner() {
   const day = dayQuery.data ?? null;
   const habits = useHabits().data ?? [];
   const today = useToday().data ?? null;
+  // Open tasks, to pull into a line — only asked for while the list is on.
+  const openTasks = useTaskList(user.tasksEnabled).data?.open ?? [];
   useRefreshOnFocus(keys.plan(date), keys.habits, keys.today);
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState<PlanBlock | null>(null);
@@ -212,20 +214,20 @@ function Planner() {
     setDate(day && next === day.today ? null : next);
   };
 
-  async function addBlock(title: string, endMinute: number, habitId: number | null): Promise<boolean> {
+  async function addBlock(title: string, endMinute: number, habitId: number | null, taskId: number | null): Promise<boolean> {
     if (!day) return false;
     const ok = await run(async () => {
-      await api<PlanBlock>(`/api/plan?date=${day.date}`, { method: "POST", body: { title, endMinute, habitId } });
+      await api<PlanBlock>(`/api/plan?date=${day.date}`, { method: "POST", body: { title, endMinute, habitId, taskId } });
       await refetchDay();
       return true;
     });
     return ok === true;
   }
 
-  async function saveBlock(id: number, title: string, endMinute: number, habitId: number | null): Promise<boolean> {
+  async function saveBlock(id: number, title: string, endMinute: number, habitId: number | null, taskId: number | null): Promise<boolean> {
     if (!day) return false;
     const ok = await run(async () => {
-      await api<PlanBlock>(`/api/plan/${id}`, { method: "PUT", body: { title, endMinute, habitId } });
+      await api<PlanBlock>(`/api/plan/${id}`, { method: "PUT", body: { title, endMinute, habitId, taskId } });
       await refetchDay();
       setEditing(null);
       return true;
@@ -267,6 +269,8 @@ function Planner() {
     try {
       const saved = await api<PlanBlock>(`/api/plan/${block.id}/done`, { method: "PUT", body: { done } });
       patchBlock(block.id, saved);
+      // The line IS the task: the server ticked it along.
+      if (block.taskId !== null) void invalidate(keys.tasks).catch(() => {});
     } catch (err) {
       patchBlock(block.id, { done: block.done });
       setError(errorMessage(err));
@@ -374,6 +378,8 @@ function Planner() {
           busy={busy}
           suggestedMinute={suggestedMinute}
           plannedHabitIds={blocks.map((b) => b.habitId).filter((id): id is number => id !== null)}
+          tasks={openTasks}
+          plannedTaskIds={blocks.map((b) => b.taskId).filter((id): id is number => id !== null)}
           today={today}
           isToday={isToday}
           onSubmit={addBlock}
@@ -388,7 +394,7 @@ function Planner() {
             habits={habits}
             initial={editing}
             busy={busy}
-            onSubmit={(title, endMinute, habitId) => saveBlock(editing.id, title, endMinute, habitId)}
+            onSubmit={(title, endMinute, habitId, taskId) => saveBlock(editing.id, title, endMinute, habitId, taskId)}
             onCancel={() => setEditing(null)}
             onToggleMuted={toggleMuted}
           />
