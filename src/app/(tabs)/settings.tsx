@@ -5,6 +5,7 @@ import Constants from "expo-constants";
 import {
   Bell,
   BookOpen,
+  CircleCheckBig,
   Download,
   ClipboardList,
   Globe,
@@ -97,6 +98,7 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plannerBusy, setPlannerBusy] = useState(false);
+  const [tasksBusy, setTasksBusy] = useState(false);
   const [remindersOn, setRemindersOn] = useState<boolean>(remindersEnabled);
   const [testSent, setTestSent] = useState(false);
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(autoUpdateEnabled);
@@ -141,6 +143,19 @@ export default function SettingsScreen() {
       setError(errorMessage(err, "Could not save that"));
     } finally {
       setPlannerBusy(false);
+    }
+  }
+
+  async function toggleTasks() {
+    setTasksBusy(true);
+    setError(null);
+    try {
+      await api("/api/users/me/settings", { method: "PATCH", body: { tasksEnabled: !user.tasksEnabled } });
+      await refreshUser();
+    } catch (err) {
+      setError(errorMessage(err, "Could not save that"));
+    } finally {
+      setTasksBusy(false);
     }
   }
 
@@ -248,6 +263,19 @@ export default function SettingsScreen() {
           title="Daily plan"
           subtitle="A timeline of your day — adds a “Plan” tab and pulls habits straight into it."
           onToggle={togglePlanner}
+        />
+        <ToggleCard
+          active={user.tasksEnabled}
+          disabled={tasksBusy}
+          tone={{ ...tone.accent, solid: tw.amber[500] }}
+          icon={(color) => <CircleCheckBig size={18} color={color} />}
+          title="Tasks"
+          subtitle={
+            user.plannerEnabled
+              ? "A list of one-off things to get done — sits beside your daily plan, in the Plan tab."
+              : "A list of one-off things to get done — adds a “Tasks” tab, and goes beside your daily plan if you turn it on."
+          }
+          onToggle={toggleTasks}
         />
       </Card>
 
