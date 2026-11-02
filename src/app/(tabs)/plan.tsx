@@ -3,7 +3,7 @@ import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, ListChecks, Plus, Sparkles } from "lucide-react-native";
+import { CalendarDays, ChevronLeft, ChevronRight, CircleCheckBig, ClipboardList, Copy, ListChecks, Plus, Sparkles } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth, useUser } from "@/lib/auth";
 import {
@@ -20,11 +20,14 @@ import {
 import { tw, useTheme } from "@/lib/theme";
 import { invalidate, keys, useHabits, usePlanDay, useRefreshOnFocus, useToday } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
+import { usePersistentState } from "@/lib/usePersistentState";
+import { TasksView } from "@/components/TasksView";
 import { BlockFields, BlockRow, DAY_MINUTES, NowLine, ShiftBar } from "@/components/PlanParts";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn, IconBtn } from "@/components/ui/Button";
 import { DateTimeInput, SelectField } from "@/components/ui/Pickers";
 import { Screen, ScreenHeader } from "@/components/ui/Screen";
+import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Txt } from "@/components/ui/Txt";
@@ -88,7 +91,32 @@ export default function PlanScreen() {
   usePerfFocus("plan");
   const user = useUser();
   if (!user.plannerEnabled) return <PlannerOff />;
+  if (user.tasksEnabled) return <PlanWithTasks />;
   return <Planner />;
+}
+
+/**
+ * Plan and tasks both on: the phone's tab bar has no room left for a sixth
+ * tab, so the list sits beside the plan here, one switch away.
+ */
+function PlanWithTasks() {
+  const { c } = useTheme();
+  const [view, setView] = usePersistentState<"plan" | "tasks">("plan-view", "plan");
+  return (
+    <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <Segmented
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "plan", label: "Plan", icon: <ClipboardList size={14} color={c.inkSoft} /> },
+            { value: "tasks", label: "Tasks", icon: <CircleCheckBig size={14} color={c.inkSoft} /> },
+          ]}
+        />
+      </View>
+      {view === "plan" ? <Planner /> : <TasksView />}
+    </View>
+  );
 }
 
 function Planner() {
