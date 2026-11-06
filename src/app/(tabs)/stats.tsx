@@ -158,7 +158,8 @@ export default function StatsScreen() {
   const habitsQuery = useHabits();
   useRefreshOnFocus(keys.history(30), keys.habits);
   const history = historyQuery.data;
-  const habits = habitsQuery.data;
+  // Archived habits are put away: the tiles and streaks count what is in use.
+  const habits = habitsQuery.data?.filter((h) => !h.archivedAt);
   const loadError = historyQuery.error ?? habitsQuery.error;
   const error = loadError ? errorMessage(loadError) : null;
 
