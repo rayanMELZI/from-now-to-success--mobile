@@ -238,15 +238,19 @@ interface DrawInput {
 
 function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean, d: DrawInput) {
   const { c, isDark, fonts } = d;
-  const locked = habit.status === "LOCKED";
+  // Archived habits are greyed out like locked ones, but keep their status
+  // underneath: the grey says "put away", not "not earned yet".
+  const archived = !!habit.archivedAt;
+  const locked = habit.status === "LOCKED" && !archived;
+  const dimmed = locked || archived;
   const valid = habit.status === "VALID";
-  const risk = habitRisk(habit);
+  const risk = archived ? null : habitRisk(habit);
   const pct = habit.requiredStreak > 0 ? Math.min(1, habit.gauge / habit.requiredStreak) : 0;
   const blob = Skia.Path.MakeFromSVGString(blobPath(habit.id, NODE_W, NODE_H))!;
 
   const border = selected
     ? tw.amber[500]
-    : locked
+    : dimmed
       ? c.lineStrong
       : risk === "critical"
         ? tw.rose[500]
@@ -255,9 +259,12 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
           : valid
             ? "rgba(4,120,87,0.65)"
             : "rgba(146,64,14,0.5)";
-  const fill = locked ? c.surfaceSunken : isDark ? "#2a2116" : tw.amber[50];
-  const liquid =
-    risk === "critical"
+  const fill = dimmed ? c.surfaceSunken : isDark ? "#2a2116" : tw.amber[50];
+  const liquid = archived
+    ? isDark
+      ? "rgba(87,83,78,0.4)"
+      : "rgba(214,211,209,0.5)"
+    : risk === "critical"
       ? "rgba(253,164,175,0.7)"
       : risk === "caution"
         ? "rgba(167,243,208,0.5)"
@@ -267,6 +274,12 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
 
   canvas.save();
   canvas.translate(at.x, at.y);
+  // Slightly faded, so put-away islands read apart from locked ones.
+  if (archived) {
+    const fade = Skia.Paint();
+    fade.setAlphaf(0.75);
+    canvas.saveLayer(fade);
+  }
   canvas.drawPath(blob, paintOf(fill));
   if (!locked && pct > 0) {
     canvas.save();
@@ -277,13 +290,19 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
   canvas.drawPath(blob, paintOf(border, selected || risk === "critical" ? 3 : 2));
 
   const cx = NODE_W / 2;
-  const lead: MapIconName | null = locked ? "lock" : habit.habitType === "QUIT" ? "ban" : null;
+  const lead: MapIconName | null = locked
+    ? "lock"
+    : archived
+      ? "archive"
+      : habit.habitType === "QUIT"
+        ? "ban"
+        : null;
   const name = fit(habit.name, fonts.title, NODE_W - 36 - (lead ? 17 : 0));
   drawRow(
     canvas,
     [
       ...(lead ? [{ icon: lead, color: lead === "ban" ? tw.red[500] : c.inkSoft, size: 13 }] : []),
-      { text: name, color: locked ? c.inkSoft : c.ink },
+      { text: name, color: dimmed ? c.inkSoft : c.ink },
     ],
     cx,
     NODE_H / 2 - 3,
@@ -292,7 +311,9 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
 
   const stats: RowItem[] = locked
     ? [{ text: "locked", color: c.inkFaint }]
-    : [
+    : archived
+      ? [{ text: `archived · ${habit.gauge}/${habit.requiredStreak}`, color: c.inkFaint }]
+      : [
         ...(risk
           ? [{ icon: "alert" as const, color: risk === "critical" ? tw.rose[600] : tw.amber[600], size: 13 }]
           : valid
@@ -305,6 +326,7 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
         { text: String(habit.currentStreak), color: c.inkSoft },
       ];
   drawRow(canvas, stats, cx, NODE_H / 2 + 19, fonts.small);
+  if (archived) canvas.restore();
   canvas.restore();
 }
 
