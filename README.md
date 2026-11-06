@@ -7,6 +7,22 @@ habit's gauge fills toward validation.
 It is a client of the same Spring Boot backend as the web app — same account,
 same habits, same points. Nothing is stored only on the phone.
 
+## Features
+
+- **Roadmap** — habits as islands on a map from "now" to "success" (pan,
+  pinch-zoom) or as a searchable list; a habit unlocks once its prerequisites
+  are validated.
+- **Check-in** — answer each scheduled habit, or reset a timer habit's clock.
+- **Plan** (opt-in) — lay the day out hour by hour and pull habits into it.
+- **Stats** — points, level, streaks and the last 30 days.
+- **Archive** — put a habit you no longer need away with every habit that
+  depends on it. It leaves the map, the check-in, the plan picker and the
+  stats, but keeps its gauge, streaks and history; the "Archived" section
+  under the roadmap (as a map or a list) brings a branch back. The time away
+  never counts as missed, and a timer resumes where its clock stood.
+- **Offline** — every screen opens on its last saved copy and refreshes
+  behind the scenes.
+
 ## Download
 
 Get the latest `.apk` from the [Releases](../../releases/latest) page and open it
