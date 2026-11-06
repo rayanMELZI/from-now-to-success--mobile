@@ -233,6 +233,7 @@ interface DrawInput {
   fonts: Fonts;
   c: Palette;
   isDark: boolean;
+  bookends: boolean;
 }
 
 function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean, d: DrawInput) {
@@ -335,13 +336,15 @@ function drawMap(d: DrawInput): SkPicture {
   const flowing = paintOf(tw.amber[600], 2.5);
   const dashed = paintOf(tw.stone[400], 1.8);
   dashed.setPathEffect(Skia.PathEffect.MakeDash([6, 6], 0));
-  const statusOf = new Map(d.habits.map((h) => [h.id, h.status]));
+  const byId = new Map(d.habits.map((h) => [h.id, h]));
   for (const habit of d.habits) {
     const to = d.positions.get(String(habit.id));
     if (!to) continue;
     for (const prereqId of habit.prerequisiteIds) {
+      // A partial map (the archive) may point at habits it does not show.
+      const prereq = byId.get(prereqId);
       const from = d.positions.get(String(prereqId));
-      if (!from) continue;
+      if (!prereq || !from) continue;
       const x1 = from.x + NODE_W;
       const y1 = from.y + NODE_H / 2;
       const x2 = to.x;
@@ -350,12 +353,14 @@ function drawMap(d: DrawInput): SkPicture {
       const path = Skia.Path.Make();
       path.moveTo(x1, y1);
       path.cubicTo(x1 + mid, y1, x2 - mid, y2, x2, y2);
-      canvas.drawPath(path, statusOf.get(prereqId) === "VALID" ? flowing : dashed);
+      canvas.drawPath(path, prereq.status === "VALID" && !prereq.archivedAt ? flowing : dashed);
     }
   }
 
-  drawAnchor(canvas, "now", d.positions.get("now")!, d);
-  drawAnchor(canvas, "success", d.positions.get("success")!, d);
+  if (d.bookends) {
+    drawAnchor(canvas, "now", d.positions.get("now")!, d);
+    drawAnchor(canvas, "success", d.positions.get("success")!, d);
+  }
   for (const habit of d.habits) {
     const at = d.positions.get(String(habit.id));
     if (at) drawIsland(canvas, habit, at, habit.id === d.selectedId, d);
@@ -377,10 +382,16 @@ export function IslandMap({
   habits,
   selectedId,
   onSelect,
+  bookends = true,
+  height: fixedHeight,
 }: {
   habits: Habit[];
   selectedId: number | null;
   onSelect: (habit: Habit) => void;
+  /** The now / success bookends — only the full roadmap is a path between them. */
+  bookends?: boolean;
+  /** A fixed height instead of filling the screen. */
+  height?: number;
 }) {
   const { c, isDark } = useTheme();
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -406,7 +417,9 @@ export function IslandMap({
     let maxX = -Infinity;
     let maxY = -Infinity;
     raw.forEach((p, id) => {
-      const w = id === "now" || id === "success" ? ANCHOR_W : NODE_W;
+      const anchor = id === "now" || id === "success";
+      if (anchor && !bookends) return;
+      const w = anchor ? ANCHOR_W : NODE_W;
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + w);
@@ -415,12 +428,12 @@ export function IslandMap({
     const shifted = new Map<string, Point>();
     raw.forEach((p, id) => shifted.set(id, { x: p.x - minX + PAD, y: p.y - minY + PAD }));
     return { positions: shifted, width: maxX - minX + PAD * 2, height: maxY - minY + PAD * 2 };
-  }, [raw]);
+  }, [raw, bookends]);
 
   // The whole map as one recorded picture, rebuilt only when the data changes.
   const picture = useMemo(
-    () => drawMap({ habits, positions, width, height, selectedId, fonts, c, isDark }),
-    [habits, positions, width, height, selectedId, fonts, c, isDark],
+    () => drawMap({ habits, positions, width, height, selectedId, fonts, c, isDark, bookends }),
+    [habits, positions, width, height, selectedId, fonts, c, isDark, bookends],
   );
 
   // The dotted chart paper, fixed under the moving islands.
@@ -444,7 +457,7 @@ export function IslandMap({
       const s = Math.min(fitScale, 1);
       return { s, x: (w - width * s) / 2, y: (h - height * s) / 2 };
     }
-    // Too big to read whole: open on "now" at a readable zoom, spine centred.
+    // Too big to read whole: open on the start at a readable zoom, spine centred.
     const s = READABLE_SCALE;
     const spineY = (positions.get("now")?.y ?? 0) + NODE_H / 2;
     return { s, x: 8, y: h / 2 - spineY * s };
@@ -519,10 +532,9 @@ export function IslandMap({
   return (
     <View
       onLayout={onLayout}
-      accessibilityLabel={`Roadmap map with ${habits.length} habits. Switch to the list view to read them one by one.`}
+      accessibilityLabel={`${bookends ? "Roadmap" : "Archive"} map with ${habits.length} habits. Switch to the list view to read them one by one.`}
       style={{
-        flex: 1,
-        minHeight: 360,
+        ...(fixedHeight ? { height: fixedHeight } : { flex: 1, minHeight: 360 }),
         borderRadius: 16,
         borderWidth: 1,
         borderColor: c.lineStrong,
