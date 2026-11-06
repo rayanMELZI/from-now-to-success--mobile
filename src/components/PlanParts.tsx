@@ -317,8 +317,11 @@ export function BlockFields({
   const [habitId, setHabitId] = useState<number | null>(initial?.habitId ?? null);
   const [added, setAdded] = useState(0);
 
-  // Locked habits are not doable yet, so they never belong in a day's plan.
-  const pickable = habits.filter((h) => h.status !== "LOCKED");
+  // Locked habits are not doable yet and archived ones are put away, so
+  // neither belongs in a day's plan — unless the line is already linked to it.
+  const pickable = habits.filter(
+    (h) => (h.status !== "LOCKED" && !h.archivedAt) || h.id === initial?.habitId,
+  );
   const valid = title.trim().length > 0;
 
   function pickHabit(habit: Habit) {
