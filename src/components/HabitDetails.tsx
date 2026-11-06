@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
-import { Ban, Flame, Lock, Pencil, TimerReset, Trash2, Trophy } from "lucide-react-native";
+import { Archive, ArchiveRestore, Ban, Flame, Lock, Pencil, TimerReset, Trash2, Trophy } from "lucide-react-native";
 import {
   demotionFloor,
   formatDuration,
@@ -19,13 +19,18 @@ export function HabitDetails({
   habit,
   onEdit,
   onDelete,
+  onArchive,
+  onRestore,
 }: {
   habit: Habit;
   onEdit: () => void;
   onDelete: () => void;
+  onArchive: () => void;
+  onRestore: () => void;
 }) {
   const { tone, c } = useTheme();
-  const risk = habitRisk(habit);
+  const archived = !!habit.archivedAt;
+  const risk = archived ? null : habitRisk(habit);
   const timer = habit.trackingMode === "TIMER";
 
   // A timer habit shows a running clock; it only ticks while the sheet is open.
@@ -114,26 +119,28 @@ export function HabitDetails({
         ))}
       </View>
 
-      {habit.status === "LOCKED" && (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            backgroundColor: c.surfaceSunken,
-            borderRadius: 10,
-            padding: 10,
-          }}
-        >
-          <Lock size={13} color={c.inkSoft} />
-          <Txt variant="small" color="soft" style={{ flex: 1 }}>
-            Unlocks when all its prerequisite habits are valid.
-          </Txt>
-        </View>
+      {habit.archivedAt && (
+        <Hint icon={<Archive size={13} color={c.inkSoft} />}>
+          {`Archived on ${new Date(habit.archivedAt).toLocaleDateString()}. Its progress is kept; the time away never counts as missed.`}
+        </Hint>
+      )}
+
+      {habit.status === "LOCKED" && !archived && (
+        <Hint icon={<Lock size={13} color={c.inkSoft} />}>Unlocks when all its prerequisite habits are valid.</Hint>
       )}
 
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Btn label="Edit" variant="ghost" icon={<Pencil size={15} color={c.ink} />} onPress={onEdit} flex />
+        {archived ? (
+          <Btn
+            label="Restore"
+            variant="ghost"
+            icon={<ArchiveRestore size={15} color={c.ink} />}
+            onPress={onRestore}
+          />
+        ) : (
+          <Btn label="Archive" variant="ghost" icon={<Archive size={15} color={c.ink} />} onPress={onArchive} />
+        )}
         <Btn
           label="Delete"
           variant="outline"
@@ -142,6 +149,27 @@ export function HabitDetails({
           onPress={onDelete}
         />
       </View>
+    </View>
+  );
+}
+
+function Hint({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  const { c } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: c.surfaceSunken,
+        borderRadius: 10,
+        padding: 10,
+      }}
+    >
+      {icon}
+      <Txt variant="small" color="soft" style={{ flex: 1 }}>
+        {children}
+      </Txt>
     </View>
   );
 }
