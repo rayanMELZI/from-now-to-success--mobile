@@ -406,6 +406,7 @@ export function IslandMap({
   onSelect,
   bookends = true,
   height: fixedHeight,
+  minHeight = 360,
 }: {
   habits: Habit[];
   selectedId: number | null;
@@ -414,6 +415,8 @@ export function IslandMap({
   bookends?: boolean;
   /** A fixed height instead of filling the screen. */
   height?: number;
+  /** When filling the screen: how small it may get before the screen clips it. */
+  minHeight?: number;
 }) {
   const { c, isDark } = useTheme();
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -556,7 +559,7 @@ export function IslandMap({
       onLayout={onLayout}
       accessibilityLabel={`${bookends ? "Roadmap" : "Archive"} map with ${habits.length} habits. Switch to the list view to read them one by one.`}
       style={{
-        ...(fixedHeight ? { height: fixedHeight } : { flex: 1, minHeight: 360 }),
+        ...(fixedHeight ? { height: fixedHeight } : { flex: 1, minHeight }),
         borderRadius: 16,
         borderWidth: 1,
         borderColor: c.lineStrong,
