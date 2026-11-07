@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
-import { ArrowDown, ArrowUp, Ban, Check, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { ArrowDown, ArrowUp, Ban, Check, CircleCheckBig, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react-native";
 import {
   formatGap,
   formatMinute,
   type Habit,
   type PlanBlock,
+  type Task,
   type TodayEntry,
   type TodayResponse,
 } from "@/lib/types";
@@ -291,6 +292,8 @@ export function ShiftBar({
 /** The time + title + habit trio, for adding a line and for editing one. */
 export function BlockFields({
   habits,
+  tasks = [],
+  plannedTaskIds = [],
   initial,
   busy,
   suggestedMinute,
@@ -302,19 +305,24 @@ export function BlockFields({
   onToggleMuted,
 }: {
   habits: Habit[];
+  /** Open tasks to pull in — empty while the tasks list is off. */
+  tasks?: Task[];
+  plannedTaskIds?: number[];
   initial?: PlanBlock;
   busy: boolean;
   suggestedMinute?: number;
   plannedHabitIds?: number[];
   today?: TodayResponse | null;
   isToday?: boolean;
-  onSubmit: (title: string, endMinute: number, habitId: number | null) => Promise<boolean>;
+  onSubmit: (title: string, endMinute: number, habitId: number | null, taskId: number | null) => Promise<boolean>;
   onCancel: () => void;
   onToggleMuted: (habit: Habit) => void;
 }) {
   const [minute, setMinute] = useState(initial?.endMinute ?? suggestedMinute ?? 8 * 60);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [habitId, setHabitId] = useState<number | null>(initial?.habitId ?? null);
+  // An edited line keeps standing for its task, whatever it is renamed to.
+  const [taskId, setTaskId] = useState<number | null>(initial?.taskId ?? null);
   const [added, setAdded] = useState(0);
 
   // Locked habits are not doable yet and archived ones are put away, so
@@ -333,13 +341,24 @@ export function BlockFields({
     if (!title.trim() || habits.some((h) => h.name === title.trim())) setTitle(habit.name);
   }
 
+  function pickTask(task: Task) {
+    if (taskId === task.id) {
+      setTaskId(null);
+      if (title.trim() === task.title) setTitle("");
+      return;
+    }
+    setTaskId(task.id);
+    setTitle(task.title);
+  }
+
   async function submit() {
     if (!valid) return;
-    const ok = await onSubmit(title.trim(), minute, habitId);
+    const ok = await onSubmit(title.trim(), minute, habitId, taskId);
     if (ok && !initial) {
       // Ready for the next line, ten minutes on.
       setTitle("");
       setHabitId(null);
+      setTaskId(null);
       setMinute(Math.min(DAY_MINUTES - 1, minute + 10));
       setAdded(added + 1);
     }
@@ -382,6 +401,15 @@ export function BlockFields({
         </View>
       </View>
 
+      {!initial && tasks.length > 0 && (
+        <Labeled
+          label="Or pull a task"
+          hint={taskId !== null ? "Ticking the line ticks the task too." : undefined}
+        >
+          <TaskPills tasks={tasks} selectedId={taskId} plannedIds={plannedTaskIds} onToggle={pickTask} />
+        </Labeled>
+      )}
+
       {pickable.length > 0 && (
         <Labeled label="Or pick a habit">
           <HabitPicker
@@ -414,5 +442,55 @@ export function BlockFields({
         <Btn label={initial || added === 0 ? "Cancel" : "Done"} variant="ghost" onPress={onCancel} />
       </View>
     </View>
+  );
+}
+
+/** The open tasks as one-tap pills; the ones already on the day are drawn back. */
+function TaskPills({
+  tasks,
+  selectedId,
+  plannedIds,
+  onToggle,
+}: {
+  tasks: Task[];
+  selectedId: number | null;
+  plannedIds: number[];
+  onToggle: (task: Task) => void;
+}) {
+  const { c, tone } = useTheme();
+  return (
+    <ScrollView style={{ maxHeight: 132 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        {tasks.map((task) => {
+          const on = task.id === selectedId;
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => onToggle(task)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                maxWidth: "100%",
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: on ? tw.amber[400] : c.lineStrong,
+                backgroundColor: on ? tone.accent.bg : pressed ? c.surfaceSunken : "transparent",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                opacity: !on && plannedIds.includes(task.id) ? 0.55 : 1,
+              })}
+            >
+              {on ? <Check size={12} color={tone.accent.text} /> : <CircleCheckBig size={12} color={c.inkFaint} />}
+              <Txt variant="small" weight={on ? "600" : "400"} color={on ? tone.accent.text : "ink"} numberOfLines={1} style={{ flexShrink: 1 }}>
+                {task.title}
+              </Txt>
+            </Pressable>
+          );
+        })}
+      </View>
+    </ScrollView>
   );
 }

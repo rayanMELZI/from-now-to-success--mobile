@@ -7,6 +7,11 @@ habit's gauge fills toward validation.
 It is a client of the same Spring Boot backend as the web app — same account,
 same habits, same points. Nothing is stored only on the phone.
 
+The daily plan and the tasks list are opt-in, from Settings › Extras. Each adds
+its own tab; with both on, the tasks sit inside the Plan tab (Android's tab bar
+holds five tabs at most), and a task can be pulled into a line of the plan —
+ticking the line ticks the task.
+
 ## Features
 
 - **Roadmap** — habits as islands on a map from "now" to "success" (pan,
@@ -14,6 +19,8 @@ same habits, same points. Nothing is stored only on the phone.
   are validated.
 - **Check-in** — answer each scheduled habit, or reset a timer habit's clock.
 - **Plan** (opt-in) — lay the day out hour by hour and pull habits into it.
+- **Tasks** (opt-in) — a to-do list; a task can be pulled into a line of the
+  plan.
 - **Stats** — points, level, streaks and the last 30 days.
 - **Archive** — put a habit you no longer need away with every habit that
   depends on it. It leaves the map, the check-in, the plan picker and the
@@ -50,7 +57,7 @@ src/
   app/
     _layout.tsx          providers + signed-in / signed-out guard
     (auth)/              login, register
-    (tabs)/              roadmap (index), check-in, plan, stats, settings
+    (tabs)/              roadmap (index), check-in, plan, tasks, stats, settings
   components/            screens' building blocks (island map, habit form…)
     ui/                  primitives: Txt, Btn, Card, Sheet, Segmented, pickers…
   lib/

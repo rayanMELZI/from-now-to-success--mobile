@@ -3,7 +3,7 @@ import { useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery, type QueryKey } from "@tanstack/react-query";
 import { api } from "./api";
 import { queryClient } from "./queryClient";
-import type { Habit, HistoryDay, PlanDay, TodayResponse, UserInfo } from "./types";
+import type { Habit, HistoryDay, PlanDay, TaskList, TodayResponse, UserInfo } from "./types";
 
 /** Every piece of server data the app shows, under one key each. */
 export const keys = {
@@ -13,6 +13,7 @@ export const keys = {
   /** null = the user's logical today, whatever date that is. */
   plan: (date: string | null) => ["plan", date ?? "today"] as const,
   me: ["me"] as const,
+  tasks: ["tasks"] as const,
 };
 
 export const fetchHabits = () => api<Habit[]>("/api/habits");
@@ -30,6 +31,11 @@ export const usePlanDay = (date: string | null) =>
     // Stepping to another day keeps this one on screen until it arrives.
     placeholderData: keepPreviousData,
   });
+
+export const fetchTasks = () => api<TaskList>("/api/tasks");
+/** Only asked for while the tasks list is turned on. */
+export const useTaskList = (enabled = true) =>
+  useQuery({ queryKey: keys.tasks, queryFn: fetchTasks, enabled });
 
 /** Warms the cache for the tabs the user has not opened yet. */
 export function prefetchEssentials() {
