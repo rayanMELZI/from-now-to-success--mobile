@@ -43,11 +43,22 @@ export default function TabsLayout() {
     };
   }, [reminderHour]);
 
+  // Android's tab bar holds five tabs at most. With both opt-in tabs on,
+  // Stats moves to a header button. It stays put while it is the tab on
+  // screen (the settings were changed elsewhere): a shown tab cannot vanish.
+  const crowded = user.plannerEnabled && user.tasksEnabled;
+  const onStats = pathname === "/stats";
+  const statsInBar = !crowded || onStats;
+  const tasksInBar = user.tasksEnabled && (!crowded || !onStats);
+
   return (
     <OnboardingProvider userId={user.id}>
       {/* One header for the whole app, above the tabs rather than inside each. */}
       <View style={{ flex: 1, backgroundColor: c.page }}>
-        <AppHeader onFeedback={() => setFeedbackOpen(true)} />
+        <AppHeader
+          onFeedback={() => setFeedbackOpen(true)}
+          onStats={statsInBar ? undefined : () => router.push("/progress")}
+        />
         {/* Android's own tab bar: every tab is built once at startup and a tap
             just shows it — no JavaScript between the tap and the switch. */}
         <NativeTabs
@@ -74,11 +85,11 @@ export default function TabsLayout() {
             <NativeTabs.Trigger.Icon md="assignment" />
             <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
-          <NativeTabs.Trigger name="tasks" hidden={!user.tasksEnabled}>
+          <NativeTabs.Trigger name="tasks" hidden={!tasksInBar}>
             <NativeTabs.Trigger.Icon md="task_alt" />
             <NativeTabs.Trigger.Label>Tasks</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
-          <NativeTabs.Trigger name="stats">
+          <NativeTabs.Trigger name="stats" hidden={!statsInBar}>
             <NativeTabs.Trigger.Icon md="bar_chart" />
             <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
