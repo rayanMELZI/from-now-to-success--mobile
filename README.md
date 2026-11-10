@@ -7,6 +7,26 @@ habit's gauge fills toward validation.
 It is a client of the same Spring Boot backend as the web app — same account,
 same habits, same points. Nothing is stored only on the phone.
 
+## Features
+
+- **Roadmap** — habits laid out as an island map from "now" to "success",
+  each with its gauge; pan and pinch to move around, or switch to a list.
+- **Check-in** — answer the day's habits, freeze a streak, reset a timer habit.
+- **Daily plan** (opt-in, Settings › Extras) — a timeline of the day that
+  pulls habits straight in.
+- **Tasks** (opt-in, Settings › Extras) — one-off things to get done, with an
+  optional deadline ("Overdue · 2 days", "Today", "Tomorrow", "Thu 30 Oct").
+  Finished tasks fold away under "Finished".
+  - **Coloured tags** — up to 5 per task, 30 in all. The tag button on a row
+    opens a checklist: each tick is saved at once, typing finds a tag and
+    Enter makes a new one in the next unused colour.
+  - Filter both lists by a tag, sort **by date** or **by tag** (remembered on
+    the phone), and rename, recolour or delete tags from the Tags sheet.
+- **Stats** — points, level, streaks and the last 30 days. With both Plan and
+  Tasks on, Android's tab bar is full, so Stats opens from the header instead.
+- **Reminders** — a daily check-in notification, scheduled on the phone.
+- **Offline** — every screen opens on the last data it saw.
+
 ## Download
 
 Get the latest `.apk` from the [Releases](../../releases/latest) page and open it
@@ -34,7 +54,8 @@ src/
   app/
     _layout.tsx          providers + signed-in / signed-out guard
     (auth)/              login, register
-    (tabs)/              roadmap (index), check-in, plan, stats, settings
+    (tabs)/              roadmap (index), check-in, plan, tasks, stats, settings
+    progress.tsx         stats on its own, when the tab bar is full
   components/            screens' building blocks (island map, habit form…)
     ui/                  primitives: Txt, Btn, Card, Sheet, Segmented, pickers…
   lib/
@@ -42,6 +63,7 @@ src/
     auth.tsx             session state
     types.ts             shared with the web app (copied from frontend/src/lib)
     reminders.ts         local daily notifications
+    tasks.ts             tasks list actions, due labels, tag colours
     theme.tsx            light/dark tokens (same palette as globals.css)
 ```
 
