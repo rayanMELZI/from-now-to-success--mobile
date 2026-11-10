@@ -60,6 +60,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.page } }}>
         <Stack.Protected guard={!!user}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="progress" options={{ headerShown: true, title: "Stats" }} />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="(auth)" />
