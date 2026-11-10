@@ -6,7 +6,7 @@ import { CalendarDays, CalendarPlus, Check, Pencil, Plus, Trash2, X } from "luci
 import { api, errorMessage } from "@/lib/api";
 import { invalidate, keys } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
-import type { Task, TaskList } from "@/lib/types";
+import type { TagColor, Task, TaskList, TaskTag } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
 import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
@@ -51,11 +51,43 @@ const patchList = (update: (list: TaskList) => TaskList) =>
  * refuses it.
  */
 export const taskActions = {
-  async add(title: string, dueDate: string | null) {
-    return attempt(() => api<Task>("/api/tasks", { method: "POST", body: { title, dueDate } }));
+  async add(title: string, dueDate: string | null, tagIds: number[] = []) {
+    return attempt(() => api<Task>("/api/tasks", { method: "POST", body: { title, dueDate, tagIds } }));
   },
-  async update(id: number, title: string, dueDate: string | null) {
-    return attempt(() => api<Task>(`/api/tasks/${id}`, { method: "PUT", body: { title, dueDate } }));
+  /** Without tagIds the task keeps the tags it has. */
+  async update(id: number, title: string, dueDate: string | null, tagIds?: number[]) {
+    return attempt(() => api<Task>(`/api/tasks/${id}`, { method: "PUT", body: { title, dueDate, tagIds } }));
+  },
+  /**
+   * Retags a saved task straight from its row: shown at once, sent with its
+   * title and deadline unchanged.
+   */
+  async setTags(task: Task, tagIds: number[]) {
+    // A refetch still on its way would put the old tags back.
+    await queryClient.cancelQueries({ queryKey: keys.tasks });
+    patchList((list) => ({
+      ...list,
+      open: list.open.map((t) => (t.id === task.id ? { ...t, tags: list.tags.filter((g) => tagIds.includes(g.id)) } : t)),
+    }));
+    return attempt(() =>
+      api<Task>(`/api/tasks/${task.id}`, { method: "PUT", body: { title: task.title, dueDate: task.dueDate, tagIds } }),
+    );
+  },
+  /** Resolves to the new tag as well, so a chooser can tick it straight away. */
+  async addTag(name: string, color: TagColor): Promise<{ tag: TaskTag | null; error: string | null }> {
+    let tag: TaskTag | null = null;
+    const error = await attempt(async () => {
+      tag = await api<TaskTag>("/api/tasks/tags", { method: "POST", body: { name, color } });
+    });
+    return { tag, error };
+  },
+  /** Renaming or recolouring changes it on every task. */
+  async updateTag(id: number, name: string, color: TagColor) {
+    return attempt(() => api<TaskTag>(`/api/tasks/tags/${id}`, { method: "PUT", body: { name, color } }));
+  },
+  /** Takes it off every task; the tasks themselves stay. */
+  async removeTag(id: number) {
+    return attempt(() => api(`/api/tasks/tags/${id}`, { method: "DELETE" }));
   },
   /** A plan line that stood for it keeps its title, but loses the link. */
   async remove(id: number) {
