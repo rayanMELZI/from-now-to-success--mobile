@@ -74,6 +74,10 @@ export default function TabsLayout() {
             <NativeTabs.Trigger.Icon md="assignment" />
             <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="tasks" hidden={!user.tasksEnabled}>
+            <NativeTabs.Trigger.Icon md="task_alt" />
+            <NativeTabs.Trigger.Label>Tasks</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
           <NativeTabs.Trigger name="stats">
             <NativeTabs.Trigger.Icon md="bar_chart" />
             <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
