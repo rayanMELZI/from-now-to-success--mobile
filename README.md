@@ -21,6 +21,11 @@ ticking the line ticks the task.
 - **Plan** (opt-in) — lay the day out hour by hour and pull habits into it.
 - **Tasks** (opt-in) — a to-do list; a task can be pulled into a line of the
   plan.
+  - **Coloured tags** — up to 5 per task, 30 in all. The tag button on a row
+    opens a checklist: each tick is saved at once, typing finds a tag and
+    Enter makes a new one in the next unused colour.
+  - Filter by a tag, sort **by date** or **by tag** (remembered on the
+    phone), and rename, recolour or delete tags from the Tags sheet.
 - **Stats** — points, level, streaks and the last 30 days.
 - **Archive** — put a habit you no longer need away with every habit that
   depends on it. It leaves the map, the check-in, the plan picker and the
