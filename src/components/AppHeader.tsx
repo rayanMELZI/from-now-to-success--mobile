@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CloudOff, MessageSquarePlus, Moon, Star, Sun } from "lucide-react-native";
+import { BarChart3, CloudOff, MessageSquarePlus, Moon, Star, Sun } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 import { useOnline } from "@/lib/offline";
 import { tw, useTheme } from "@/lib/theme";
@@ -9,9 +9,10 @@ import { Txt } from "./ui/Txt";
 
 /**
  * The web app's top bar, shrunk for a phone: logo, feedback, the theme
- * switch and the point total — plus the offline strip under it.
+ * switch and the point total — plus the offline strip under it. With
+ * `onStats`, Stats is not in the tab bar and opens from here instead.
  */
-export function AppHeader({ onFeedback }: { onFeedback: () => void }) {
+export function AppHeader({ onFeedback, onStats }: { onFeedback: () => void; onStats?: () => void }) {
   const { c, tone, isDark, setPreference } = useTheme();
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
@@ -43,10 +44,24 @@ export function AppHeader({ onFeedback }: { onFeedback: () => void }) {
           })}
         >
           <MessageSquarePlus size={15} color={c.inkSoft} />
-          <Txt variant="tiny" weight="600" color="soft">
-            Feedback
-          </Txt>
+          {/* The stats button needs the room on a narrow phone. */}
+          {!onStats && (
+            <Txt variant="tiny" weight="600" color="soft">
+              Feedback
+            </Txt>
+          )}
         </Pressable>
+
+        {onStats && (
+          <Pressable
+            onPress={onStats}
+            accessibilityLabel="Stats"
+            hitSlop={4}
+            style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+          >
+            <BarChart3 size={18} color={c.inkSoft} />
+          </Pressable>
+        )}
 
         <Pressable
           onPress={() => setPreference(isDark ? "light" : "dark")}
