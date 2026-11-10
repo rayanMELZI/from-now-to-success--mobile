@@ -12,6 +12,7 @@ import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
 import { Txt } from "./ui/Txt";
+import { TagChip } from "./TagParts";
 
 /** Same rule as the plan: dates in the app's language, not the phone's. */
 const DATE_LOCALE = "en-GB";
@@ -191,7 +192,14 @@ export function TaskRow({
         <Txt variant="small" weight={task.done ? "400" : "600"} color={task.done ? "faint" : "ink"} strike={task.done}>
           {task.title}
         </Txt>
-        {task.dueDate && !task.done && <DueChip due={task.dueDate} today={today} />}
+        {((task.dueDate && !task.done) || task.tags.length > 0) && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
+            {task.dueDate && !task.done && <DueChip due={task.dueDate} today={today} />}
+            {task.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
+            ))}
+          </View>
+        )}
       </Pressable>
       {children}
     </View>
