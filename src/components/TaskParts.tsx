@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
-import { CalendarDays, CalendarPlus, Check, Pencil, Plus, Trash2, X } from "lucide-react-native";
+import { CalendarDays, CalendarPlus, Check, Pencil, Plus, Tag, Trash2, X } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
 import { invalidate, keys } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
@@ -12,7 +12,7 @@ import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
 import { Txt } from "./ui/Txt";
-import { TagChip } from "./TagParts";
+import { ChosenTags, TagChip, TagChooser, type CreateTag } from "./TagParts";
 
 /** Same rule as the plan: dates in the app's language, not the phone's. */
 const DATE_LOCALE = "en-GB";
@@ -255,33 +255,85 @@ export function DueField({
   );
 }
 
-/** One line: the title in, an optional deadline, "done" on the keyboard adds it. */
+/** What a form needs to tag a task: the user's tags, and a way to make one. */
+export interface TagOptions {
+  tags: TaskTag[];
+  onCreate: CreateTag;
+  /** Shown in the chooser, which covers the screen's own banner. */
+  error?: string | null;
+  onDismissError?: () => void;
+}
+
+/** "Tag it" for a form: a button that opens the checklist. */
+function TagButton({
+  options,
+  selected,
+  onChange,
+  children,
+}: {
+  options: TagOptions;
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  /** Draws the button from its open handler. */
+  children: (open: () => void) => ReactNode;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  return (
+    <>
+      {children(() => setChoosing(true))}
+      <TagChooser
+        open={choosing}
+        onClose={() => setChoosing(false)}
+        title="Tag it"
+        tags={options.tags}
+        selected={selected}
+        onChange={onChange}
+        onCreate={options.onCreate}
+        error={options.error}
+        onDismissError={options.onDismissError}
+      />
+    </>
+  );
+}
+
+/** Tag ids still worth sending: a tag deleted meanwhile would be dropped by the server anyway. */
+const liveTagIds = (ids: number[], options?: TagOptions) =>
+  options ? ids.filter((id) => options.tags.some((t) => t.id === id)) : [];
+
+/** One line: the title in, an optional deadline and tags, "done" on the keyboard adds it. */
 export function TaskQuickAdd({
   today,
   onAdd,
+  tagOptions,
   compact = false,
 }: {
   today: string;
-  onAdd: (title: string, dueDate: string | null) => Promise<boolean>;
+  onAdd: (title: string, dueDate: string | null, tagIds: number[]) => Promise<boolean>;
+  /** With these, a tag button joins the line (never in compact mode). */
+  tagOptions?: TagOptions;
   /** Inside the plan: no deadline, just the title. */
   compact?: boolean;
 }) {
   const { c } = useTheme();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
+  const [tagIds, setTagIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  const withTags = !compact && tagOptions !== undefined;
 
   async function submit() {
     const trimmed = title.trim();
     if (!trimmed || busy) return;
     setBusy(true);
-    const ok = await onAdd(trimmed, dueDate);
+    const ok = await onAdd(trimmed, dueDate, liveTagIds(tagIds, tagOptions));
     setBusy(false);
     if (ok) {
       setTitle("");
       setDueDate(null);
+      setTagIds([]);
     }
   }
+
 
   return (
     <View style={{ gap: 8 }}>
@@ -303,6 +355,15 @@ export function TaskQuickAdd({
             <CalendarPlus size={18} color={c.inkSoft} />
           </IconBtn>
         )}
+        {withTags && (
+          <TagButton options={tagOptions} selected={tagIds} onChange={setTagIds}>
+            {(open) => (
+              <IconBtn label="Tag it" onPress={open} bordered size={46}>
+                <Tag size={18} color={c.inkSoft} />
+              </IconBtn>
+            )}
+          </TagButton>
+        )}
         <IconBtn
           label="Add task"
           onPress={() => void submit()}
@@ -314,34 +375,39 @@ export function TaskQuickAdd({
         </IconBtn>
       </View>
       {!compact && dueDate && <DueField value={dueDate} onChange={setDueDate} today={today} />}
+      {withTags && <ChosenTags tags={tagOptions.tags} selected={tagIds} onChange={setTagIds} />}
     </View>
   );
 }
 
-/** Title and deadline, edited in a sheet — with the way out at the bottom. */
+/** Title, deadline and tags, edited in a sheet — with the way out at the bottom. */
 export function TaskEditor({
   task,
   today,
+  tagOptions,
   onSave,
   onDelete,
   onCancel,
 }: {
   task: Task;
   today: string;
-  onSave: (title: string, dueDate: string | null) => Promise<void>;
+  tagOptions?: TagOptions;
+  /** tagIds is left out without tagOptions, so the task keeps its tags. */
+  onSave: (title: string, dueDate: string | null, tagIds?: number[]) => Promise<void>;
   onDelete: () => void;
   onCancel: () => void;
 }) {
   const { c } = useTheme();
   const [title, setTitle] = useState(task.title);
   const [dueDate, setDueDate] = useState<string | null>(task.dueDate);
+  const [tagIds, setTagIds] = useState<number[]>(() => task.tags.map((t) => t.id));
   const [busy, setBusy] = useState(false);
   const valid = title.trim().length > 0;
 
   async function save() {
     if (!valid || busy) return;
     setBusy(true);
-    await onSave(title.trim(), dueDate);
+    await onSave(title.trim(), dueDate, tagOptions ? liveTagIds(tagIds, tagOptions) : undefined);
     setBusy(false);
   }
 
@@ -362,6 +428,18 @@ export function TaskEditor({
       <Labeled label="Due by" hint="Optional — tasks with a deadline sit on top, soonest first.">
         <DueField value={dueDate} onChange={setDueDate} today={today} />
       </Labeled>
+      {tagOptions && (
+        <Labeled label="Tags">
+          <View style={{ gap: 8 }}>
+            <ChosenTags tags={tagOptions.tags} selected={tagIds} onChange={setTagIds} />
+            <TagButton options={tagOptions} selected={tagIds} onChange={setTagIds}>
+              {(open) => (
+                <Btn variant="ghost" label="Tag it" icon={<Tag size={15} color={c.ink} />} onPress={open} />
+              )}
+            </TagButton>
+          </View>
+        </Labeled>
+      )}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Btn label="Save" icon={<Pencil size={15} color="#fff" />} onPress={() => void save()} disabled={!valid} loading={busy} flex />
         <Btn label="Cancel" variant="ghost" onPress={onCancel} />
