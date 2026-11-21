@@ -18,6 +18,13 @@ every few hours after), downloads the new APK and installs it. The first update
 asks you to tap Update once in Android's dialog; after that, Android 12+
 installs updates silently. It can be turned off in Settings › App updates.
 
+**Home-screen widget (Android).** Long-press the home screen › Widgets ›
+fromNowToSuccess › *Daily plan*. It lists today's plan with the line you are
+on highlighted and the share of lines done. Its **+** button opens the app with
+a new line already started. The app hands the widget a copy of the plan every
+time the plan changes, so open the app once a day to fill it. The widget moves
+"now" along on its own and says so when its copy is from a day that has ended.
+
 ## Stack
 
 - **Expo SDK 57** (React Native 0.86, React 19, TypeScript)
@@ -42,6 +49,7 @@ src/
     auth.tsx             session state
     types.ts             shared with the web app (copied from frontend/src/lib)
     reminders.ts         local daily notifications
+    widget.ts            today's plan → the home-screen widget
     theme.tsx            light/dark tokens (same palette as globals.css)
 ```
 
