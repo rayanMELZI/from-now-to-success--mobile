@@ -26,10 +26,10 @@ class PlanWidgetService : RemoteViewsService() {
     override fun getCount() = plan?.lines?.size ?: 0
 
     override fun getViewAt(position: Int): RemoteViews {
-      val plan = plan
-      val line = plan?.lines?.getOrNull(position)
-        ?: return RemoteViews(context.packageName, R.layout.fnts_plan_widget_item)
-      val current = position == plan.current
+      val shown = plan
+      val line = shown?.lines?.getOrNull(position)
+      if (shown == null || line == null) return RemoteViews(context.packageName, R.layout.fnts_plan_widget_item)
+      val current = position == shown.current
 
       // Colours live in the layouts, so the launcher picks light or dark.
       val layout = when {
