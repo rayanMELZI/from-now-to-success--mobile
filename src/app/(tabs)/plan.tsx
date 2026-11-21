@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, ListChecks, Plus, Sparkles } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
@@ -118,6 +118,25 @@ function Planner() {
     const id = setInterval(() => setNowMinute(nowMinuteOf()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // The widget's + lands here as /plan?add=1: today's plan, a new line started.
+  // Handled while rendering (once per arrival), then the link is cleared so
+  // the next tap on + counts again.
+  const { add } = useLocalSearchParams<{ add?: string }>();
+  const [seenAdd, setSeenAdd] = useState<string | undefined>(undefined);
+  if (add !== seenAdd) {
+    setSeenAdd(add);
+    if (add) {
+      setSelecting(false);
+      setSelectedIds(new Set());
+      setEditing(null);
+      setDate(null);
+      setComposing(true);
+    }
+  }
+  useEffect(() => {
+    if (add) router.setParams({ add: undefined });
+  }, [add]);
 
   const reload = () => invalidate(keys.plan(date), keys.habits, keys.today);
   /** Writes a fresh copy of the day being looked at into the cache. */
