@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="fnts_widget_name">Daily plan</string>
+  <string name="fnts_widget_description">Today\'s plan, and a button to add a line</string>
+  <string name="fnts_widget_title">Today\'s plan</string>
+  <string name="fnts_widget_add">Add a line</string>
+  <string name="fnts_widget_signed_out">Sign in to the app to see your plan here</string>
+  <string name="fnts_widget_planner_off">The daily plan is off — turn it on in the app\'s settings</string>
+  <string name="fnts_widget_stale">Open the app to load today\'s plan</string>
+  <string name="fnts_widget_empty">Nothing planned yet — tap + to add the first line</string>
+  <string name="fnts_widget_progress">%1$d/%2$d done</string>
+  <string name="fnts_widget_all_done">All %1$d done</string>
+  <string name="fnts_widget_now">Now · %1$s · until %2$s</string>
+  <string name="fnts_widget_day_over">Day over · %1$d/%2$d done</string>
+</resources>

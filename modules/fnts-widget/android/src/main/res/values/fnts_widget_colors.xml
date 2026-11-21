@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's light palette (src/lib/theme.tsx), for the widget. -->
+<resources>
+  <color name="fnts_widget_bg">#FFFFFF</color>
+  <color name="fnts_widget_line">#E7E5E4</color>
+  <color name="fnts_widget_ink">#292524</color>
+  <color name="fnts_widget_ink_soft">#57534E</color>
+  <color name="fnts_widget_ink_faint">#A8A29E</color>
+  <color name="fnts_widget_accent">#D97706</color>
+  <color name="fnts_widget_accent_soft">#FEF3C7</color>
+  <color name="fnts_widget_accent_ink">#92400E</color>
+  <color name="fnts_widget_done">#10B981</color>
+</resources>
