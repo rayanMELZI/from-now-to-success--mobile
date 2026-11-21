@@ -2,6 +2,7 @@ import { API_URL } from "./config";
 import { reportReachable, reportUnreachable } from "./offline";
 import { clearQueryCache } from "./queryClient";
 import type { UserInfo } from "./types";
+import { clearPlanWidget } from "./widget";
 
 /**
  * The access token lives only in memory. The refresh token is the backend's
@@ -58,9 +59,13 @@ async function send(path: string, init: RequestInit): Promise<Response> {
 
 /**
  * Cached screens belong to one account; never let them outlive it. The
- * offline copy of every screen now lives in the persisted query cache.
+ * offline copy of every screen now lives in the persisted query cache, and
+ * the home-screen widget holds a copy of today's plan.
  */
-export const clearCachedData = async () => clearQueryCache();
+export const clearCachedData = async () => {
+  clearQueryCache();
+  clearPlanWidget();
+};
 
 /* ------------------------------------------------------------------ refresh */
 
