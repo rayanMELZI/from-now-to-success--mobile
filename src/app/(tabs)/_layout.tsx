@@ -10,6 +10,7 @@ import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { useUser } from "@/lib/auth";
 import { syncReminders } from "@/lib/reminders";
 import { useTheme } from "@/lib/theme";
+import { usePlanWidget } from "@/lib/usePlanWidget";
 
 export default function TabsLayout() {
   const user = useUser();
@@ -17,6 +18,8 @@ export default function TabsLayout() {
   const pathname = usePathname();
   // One feedback sheet for the whole app, opened from any tab's header.
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // The home-screen widget follows today's plan for as long as someone is signed in.
+  usePlanWidget();
 
   // Tapping a reminder opens the screen it is about.
   useEffect(() => {
