@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- The "Daily plan" home-screen widget. -->
+    <receiver
+      android:name="expo.modules.fntswidget.PlanWidgetProvider"
+      android:label="@string/fnts_widget_name"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <!-- The clock moved: "now" may sit on another line, or another day. -->
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/fnts_plan_widget_info" />
+    </receiver>
+
+    <!-- Feeds the widget's scrolling list of lines. -->
+    <service
+      android:name="expo.modules.fntswidget.PlanWidgetService"
+      android:permission="android.permission.BIND_REMOTEVIEWS"
+      android:exported="false" />
+  </application>
+</manifest>
