@@ -79,7 +79,8 @@ object PlanWidget {
         dayEndHour = obj.optInt("dayEndHour", 0),
         lines = lines,
       )
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      // A copy this build cannot read is no copy at all.
       null
     }
   }
