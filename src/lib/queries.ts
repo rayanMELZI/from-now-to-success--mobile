@@ -18,6 +18,8 @@ export const keys = {
 export const fetchHabits = () => api<Habit[]>("/api/habits");
 export const fetchToday = () => api<TodayResponse>("/api/checkins/today");
 export const fetchMe = () => api<UserInfo>("/api/users/me");
+/** null = the user's logical today. */
+export const fetchPlanDay = (date: string | null) => api<PlanDay>(`/api/plan${date ? `?date=${date}` : ""}`);
 
 export const useHabits = () => useQuery({ queryKey: keys.habits, queryFn: fetchHabits });
 export const useToday = () => useQuery({ queryKey: keys.today, queryFn: fetchToday });
@@ -26,7 +28,7 @@ export const useHistory = (days = 30) =>
 export const usePlanDay = (date: string | null) =>
   useQuery({
     queryKey: keys.plan(date),
-    queryFn: () => api<PlanDay>(`/api/plan${date ? `?date=${date}` : ""}`),
+    queryFn: () => fetchPlanDay(date),
     // Stepping to another day keeps this one on screen until it arrives.
     placeholderData: keepPreviousData,
   });
