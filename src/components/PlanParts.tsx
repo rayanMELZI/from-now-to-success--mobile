@@ -10,10 +10,12 @@ import {
   type TodayEntry,
   type TodayResponse,
 } from "@/lib/types";
+import { plainText } from "@/lib/richText";
 import { tw, useTheme } from "@/lib/theme";
 import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
+import { RichText } from "./ui/RichText";
 import { Txt } from "./ui/Txt";
 import { HabitPicker } from "./HabitPicker";
 
@@ -344,11 +346,12 @@ export function BlockFields({
   function pickTask(task: Task) {
     if (taskId === task.id) {
       setTaskId(null);
-      if (title.trim() === task.title) setTitle("");
+      if (title.trim() === plainText(task.title)) setTitle("");
       return;
     }
     setTaskId(task.id);
-    setTitle(task.title);
+    // A plan line is plain text: the task's words, without its formatting.
+    setTitle(plainText(task.title));
   }
 
   async function submit() {
@@ -484,9 +487,14 @@ function TaskPills({
               })}
             >
               {on ? <Check size={12} color={tone.accent.text} /> : <CircleCheckBig size={12} color={c.inkFaint} />}
-              <Txt variant="small" weight={on ? "600" : "400"} color={on ? tone.accent.text : "ink"} numberOfLines={1} style={{ flexShrink: 1 }}>
-                {task.title}
-              </Txt>
+              <RichText
+                source={task.title}
+                variant="small"
+                weight={on ? "600" : "400"}
+                color={on ? tone.accent.text : "ink"}
+                numberOfLines={1}
+                style={{ flexShrink: 1 }}
+              />
             </Pressable>
           );
         })}
