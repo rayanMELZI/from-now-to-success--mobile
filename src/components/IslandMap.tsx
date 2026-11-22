@@ -19,6 +19,7 @@ import {
   type SkSVG,
 } from "@shopify/react-native-skia";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react-native";
+import { plainText } from "@/lib/richText";
 import { habitRisk, type Habit } from "@/lib/types";
 import { tw, useTheme, type Palette } from "@/lib/theme";
 import { MAP_ICONS, type MapIconName } from "./mapIcons";
@@ -297,7 +298,8 @@ function drawIsland(canvas: SkCanvas, habit: Habit, at: Point, selected: boolean
       : habit.habitType === "QUIT"
         ? "ban"
         : null;
-  const name = fit(habit.name, fonts.title, NODE_W - 36 - (lead ? 17 : 0));
+  // The canvas draws one font: the name's words, without their formatting.
+  const name = fit(plainText(habit.name), fonts.title, NODE_W - 36 - (lead ? 17 : 0));
   drawRow(
     canvas,
     [
