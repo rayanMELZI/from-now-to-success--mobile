@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { CircleCheckBig, Tag, Trash2 } from "lucide-react-native";
 import { errorMessage } from "@/lib/api";
 import { invalidate, keys, useRefreshOnFocus, useTaskList } from "@/lib/queries";
+import { plainText } from "@/lib/richText";
 import type { Task } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
 import { usePersistentState } from "@/lib/usePersistentState";
@@ -42,7 +43,7 @@ export function TasksView() {
   }
 
   function remove(task: Task) {
-    Alert.alert("Delete this task?", task.title, [
+    Alert.alert("Delete this task?", plainText(task.title), [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -125,7 +126,7 @@ export function TasksView() {
           <TagChooser
             open={tagging !== null}
             onClose={() => setTaggingId(null)}
-            title={tagging ? `Tag “${tagging.title}”` : "Tags"}
+            title={tagging ? `Tag “${plainText(tagging.title)}”` : "Tags"}
             tags={list.tags}
             selected={tagging?.tags.map((t) => t.id) ?? []}
             onChange={(ids) => {
@@ -207,10 +208,10 @@ export function TasksView() {
                     onToggle={() => void run(taskActions.toggleDone(task))}
                     onPress={() => setEditing(task)}
                   >
-                    <IconBtn label={`Tag ${task.title}`} onPress={() => setTaggingId(task.id)} size={34}>
+                    <IconBtn label={`Tag ${plainText(task.title)}`} onPress={() => setTaggingId(task.id)} size={34}>
                       <Tag size={15} color={c.inkFaint} />
                     </IconBtn>
-                    <IconBtn label={`Delete ${task.title}`} onPress={() => remove(task)} size={34}>
+                    <IconBtn label={`Delete ${plainText(task.title)}`} onPress={() => remove(task)} size={34}>
                       <Trash2 size={15} color={c.inkFaint} />
                     </IconBtn>
                   </TaskRow>
@@ -243,7 +244,7 @@ export function TasksView() {
             {done.map((task, index) => (
               <View key={task.id} style={index > 0 ? { borderTopWidth: 1, borderTopColor: c.line } : undefined}>
                 <TaskRow task={task} today={list.today} onToggle={() => void run(taskActions.toggleDone(task))}>
-                  <IconBtn label={`Delete ${task.title}`} onPress={() => remove(task)} size={34}>
+                  <IconBtn label={`Delete ${plainText(task.title)}`} onPress={() => remove(task)} size={34}>
                     <Trash2 size={15} color={c.inkFaint} />
                   </IconBtn>
                 </TaskRow>
