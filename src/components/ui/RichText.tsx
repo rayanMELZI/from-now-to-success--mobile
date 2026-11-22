@@ -138,15 +138,25 @@ export function RichField({
     emit(replaceRange(runs, start, end, inserted, style));
   }
 
+  // Hand the cursor back to the user once the restored selection is drawn,
+  // even if the platform sends no selection event for it.
+  useEffect(() => {
+    if (!forcedSelection) return;
+    const id = setTimeout(() => setForcedSelection(undefined), 0);
+    return () => clearTimeout(id);
+  }, [forcedSelection]);
+
   function handleSelection(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) {
     const sel = e.nativeEvent.selection;
     setSelection(sel);
-    setForcedSelection(undefined);
-    if (pending && (sel.start !== sel.end || sel.start !== pending.at)) setPending(null);
+    // Some platforms report the moved cursor before the typed text, so the
+    // pending style only goes once the cursor leaves for elsewhere.
+    if (pending && (sel.start !== sel.end || sel.start < pending.at)) setPending(null);
   }
 
   const collapsed = selection.start === selection.end;
-  const caretStyle = pending?.style ?? styleAt(runs, selection.start - 1);
+  const caretStyle =
+    pending && pending.at === selection.start ? pending.style : styleAt(runs, selection.start - 1);
   const isOn = (key: ToggleKey) =>
     collapsed ? !!caretStyle[key] : rangeHas(runs, selection.start, selection.end, key);
   const activeColor = collapsed ? caretStyle.color : styleAt(runs, selection.start).color;
