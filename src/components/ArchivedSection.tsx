@@ -9,6 +9,8 @@ import { Card } from "./ui/Card";
 import { Disclosure } from "./ui/Disclosure";
 import { Segmented } from "./ui/Segmented";
 import { Txt } from "./ui/Txt";
+import { plainText } from "@/lib/richText";
+import { RichText } from "@/components/ui/RichText";
 
 type View_ = "map" | "list";
 
@@ -48,12 +50,10 @@ export function ArchivedSection({
         return (
           <Card key={root.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12 }}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Txt weight="600" numberOfLines={1} onPress={() => onSelect(root)}>
-                {root.name}
-              </Txt>
+              <RichText source={root.name} weight="600" numberOfLines={1} onPress={() => onSelect(root)} />
               <Txt variant="tiny" color="faint" numberOfLines={2}>
-                {members.length > 0 ? `with ${members.map((m) => m.name).join(", ")}` : "on its own"}
-                {waitingOn && ` · needs "${waitingOn.name}" back first`}
+                {members.length > 0 ? `with ${members.map((m) => plainText(m.name)).join(", ")}` : "on its own"}
+                {waitingOn && ` · needs "${plainText(waitingOn.name)}" back first`}
               </Txt>
             </View>
             <Btn
@@ -63,7 +63,7 @@ export function ArchivedSection({
               icon={<ArchiveRestore size={14} color={waitingOn ? c.inkFaint : c.ink} />}
               disabled={!!waitingOn}
               onPress={() => onRestore(root)}
-              accessibilityLabel={waitingOn ? `Restore "${waitingOn.name}" first` : `Restore "${root.name}"`}
+              accessibilityLabel={waitingOn ? `Restore "${plainText(waitingOn.name)}" first` : `Restore "${plainText(root.name)}"`}
             />
           </Card>
         );
