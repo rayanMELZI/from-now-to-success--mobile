@@ -22,6 +22,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Toast } from "@/components/ui/Toast";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Txt } from "@/components/ui/Txt";
+import { plainText } from "@/lib/richText";
 
 type View_ = "map" | "list";
 type Mode = "closed" | "view" | "create" | "edit";
@@ -60,7 +61,7 @@ export default function RoadmapScreen() {
 
   function deleteHabit() {
     if (!selected) return;
-    Alert.alert("Delete habit?", `"${selected.name}" and all its history will be gone for good.`, [
+    Alert.alert("Delete habit?", `"${plainText(selected.name)}" and all its history will be gone for good.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -95,8 +96,8 @@ export default function RoadmapScreen() {
     );
     const branch =
       dependents === 0
-        ? `"${selected.name}"`
-        : `"${selected.name}" and the ${dependents} habit${dependents === 1 ? "" : "s"} that depend on it`;
+        ? `"${plainText(selected.name)}"`
+        : `"${plainText(selected.name)}" and the ${dependents} habit${dependents === 1 ? "" : "s"} that depend on it`;
     Alert.alert(
       "Archive habit?",
       `Archive ${branch}? They leave the map and the check-in, keep their progress, and come back whenever you restore them.`,
@@ -131,8 +132,8 @@ export default function RoadmapScreen() {
       setError(null);
       setNotice(
         back > 1
-          ? `"${habit.name}" and ${back - 1} more are back on your roadmap.`
-          : `"${habit.name}" is back on your roadmap.`,
+          ? `"${plainText(habit.name)}" and ${back - 1} more are back on your roadmap.`
+          : `"${plainText(habit.name)}" is back on your roadmap.`,
       );
       await showHabits(data);
     } catch (err) {
