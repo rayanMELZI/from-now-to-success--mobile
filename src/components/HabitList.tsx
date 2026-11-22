@@ -8,6 +8,8 @@ import { Field } from "./ui/Field";
 import { Txt } from "./ui/Txt";
 import { GaugeBar } from "./GaugeBar";
 import { HabitIcon, RiskBadge } from "./HabitBits";
+import { RichText } from "@/components/ui/RichText";
+import { plainText } from "@/lib/richText";
 
 const SECTIONS: { status: HabitStatus; label: string; hint: string }[] = [
   { status: "ACTIVE", label: "In progress", hint: "unlocked and waiting for you" },
@@ -28,7 +30,7 @@ export function HabitList({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? habits.filter((h) => h.name.toLowerCase().includes(q)) : habits;
+    return q ? habits.filter((h) => plainText(h.name).toLowerCase().includes(q)) : habits;
   }, [habits, query]);
 
   const sections = SECTIONS.map((s) => ({ ...s, items: matches.filter((h) => h.status === s.status) })).filter(
@@ -89,9 +91,7 @@ function HabitCard({ habit, onPress }: { habit: Habit; onPress: () => void }) {
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         {locked ? <Lock size={14} color={c.inkFaint} /> : <HabitIcon habit={habit} />}
-        <Txt weight="600" numberOfLines={1} style={{ flex: 1 }}>
-          {habit.name}
-        </Txt>
+        <RichText source={habit.name} weight="600" numberOfLines={1} style={{ flex: 1 }} />
         {risk && <RiskBadge risk={risk} />}
       </View>
       <GaugeBar gauge={habit.gauge} max={habit.requiredStreak} valid={habit.status === "VALID"} timer={timer} />
