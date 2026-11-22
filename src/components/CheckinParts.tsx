@@ -33,8 +33,7 @@ import { ToggleCard } from "./ui/ToggleCard";
 import { Txt } from "./ui/Txt";
 import { GaugeBar } from "./GaugeBar";
 import { ProgressRing, RiskBadge } from "./HabitBits";
-import { Field } from "./ui/Field";
-import { RichText } from "@/components/ui/RichText";
+import { RichField, RichText } from "@/components/ui/RichText";
 import { plainText } from "@/lib/richText";
 
 export interface MissDraft {
@@ -340,7 +339,7 @@ function MissDraftPanel({
       <Txt variant="tiny" color="soft">
         What happened? (a reason halves the point loss)
       </Txt>
-      <Field
+      <RichField
         value={draft.reason}
         maxLength={500}
         multiline
@@ -568,7 +567,7 @@ export function TimerCard({
           <Txt variant="tiny" color="soft">
             What happened? (a reason halves the point loss)
           </Txt>
-          <Field
+          <RichField
             value={draft.reason}
             maxLength={500}
             multiline
