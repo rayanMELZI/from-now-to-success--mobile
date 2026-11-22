@@ -35,6 +35,8 @@ import { Segmented } from "@/components/ui/Segmented";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Toast } from "@/components/ui/Toast";
 import { Txt } from "@/components/ui/Txt";
+import { RichText } from "@/components/ui/RichText";
+import { plainText } from "@/lib/richText";
 
 type GroupBy = "none" | "rhythm" | "goal";
 type Shape = "cards" | "list";
@@ -299,12 +301,12 @@ export default function CheckinScreen() {
             </Txt>
             {result.becameValid.length > 0 && (
               <Txt variant="small" color="soft">
-                ✓ Now valid: {result.becameValid.join(", ")}
+                ✓ Now valid: {result.becameValid.map(plainText).join(", ")}
               </Txt>
             )}
             {result.unlocked.length > 0 && (
               <Txt variant="small" color="soft">
-                Unlocked: {result.unlocked.join(", ")}
+                Unlocked: {result.unlocked.map(plainText).join(", ")}
               </Txt>
             )}
           </>
@@ -475,9 +477,7 @@ export default function CheckinScreen() {
                 }}
               >
                 {entry.habitType === "QUIT" ? <Ban size={13} color={tw.red[500]} /> : <Sprout size={13} color={tw.emerald[600]} />}
-                <Txt variant="small" numberOfLines={1} style={{ flex: 1 }}>
-                  {entry.name}
-                </Txt>
+                <RichText source={entry.name} variant="small" numberOfLines={1} style={{ flex: 1 }} />
                 <AnsweredStatus entry={entry} />
               </View>
             ))}
