@@ -9,10 +9,19 @@ import { queryClient } from "@/lib/queryClient";
 import type { TagColor, Task, TaskList, TaskTag } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
 import { Btn, IconBtn } from "./ui/Button";
-import { Field, Labeled } from "./ui/Field";
+import { Labeled } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
+import { RichField, RichText } from "./ui/RichText";
 import { Txt } from "./ui/Txt";
+import { plainText } from "@/lib/richText";
 import { ChosenTags, TagChip, TagChooser, type CreateTag } from "./TagParts";
+
+/** The longest a stored title may be, formatting marks included (as on the server). */
+export const MAX_TASK_TITLE = 120;
+
+/** A title worth saving: some words, and within the server's limit once formatted. */
+export const titleIsValid = (title: string) =>
+  plainText(title).trim().length > 0 && title.trim().length <= MAX_TASK_TITLE;
 
 /** Same rule as the plan: dates in the app's language, not the phone's. */
 const DATE_LOCALE = "en-GB";
@@ -134,7 +143,7 @@ export function TaskCheck({ task, onToggle }: { task: Task; onToggle: () => void
       hitSlop={12}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: task.done }}
-      accessibilityLabel={task.done ? `Put ${task.title} back on the list` : `Mark ${task.title} done`}
+      accessibilityLabel={task.done ? `Put ${plainText(task.title)} back on the list` : `Mark ${plainText(task.title)} done`}
       style={({ pressed }) => ({
         width: 22,
         height: 22,
@@ -189,9 +198,13 @@ export function TaskRow({
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, opacity: dimmed ? 0.55 : 1 }}>
       <TaskCheck task={task} onToggle={onToggle} />
       <Pressable onPress={onPress} disabled={!onPress} style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
-        <Txt variant="small" weight={task.done ? "400" : "600"} color={task.done ? "faint" : "ink"} strike={task.done}>
-          {task.title}
-        </Txt>
+        <RichText
+          source={task.title}
+          variant="small"
+          weight={task.done ? "400" : "600"}
+          color={task.done ? "faint" : "ink"}
+          strike={task.done}
+        />
         {((task.dueDate && !task.done) || task.tags.length > 0) && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
             {task.dueDate && !task.done && <DueChip due={task.dueDate} today={today} />}
@@ -323,7 +336,7 @@ export function TaskQuickAdd({
 
   async function submit() {
     const trimmed = title.trim();
-    if (!trimmed || busy) return;
+    if (!titleIsValid(trimmed) || busy) return;
     setBusy(true);
     const ok = await onAdd(trimmed, dueDate, liveTagIds(tagIds, tagOptions));
     setBusy(false);
@@ -337,12 +350,13 @@ export function TaskQuickAdd({
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      {/* Top-aligned: the formatting bar opens under the field while typing. */}
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
         <View style={{ flex: 1 }}>
-          <Field
+          <RichField
             value={title}
             onChangeText={setTitle}
-            maxLength={120}
+            maxLength={MAX_TASK_TITLE}
             placeholder="Something to get done…"
             accessibilityLabel="New task"
             returnKeyType="done"
@@ -367,7 +381,7 @@ export function TaskQuickAdd({
         <IconBtn
           label="Add task"
           onPress={() => void submit()}
-          disabled={busy || !title.trim()}
+          disabled={busy || !titleIsValid(title)}
           size={46}
           style={{ backgroundColor: c.accent }}
         >
@@ -402,7 +416,7 @@ export function TaskEditor({
   const [dueDate, setDueDate] = useState<string | null>(task.dueDate);
   const [tagIds, setTagIds] = useState<number[]>(() => task.tags.map((t) => t.id));
   const [busy, setBusy] = useState(false);
-  const valid = title.trim().length > 0;
+  const valid = titleIsValid(title);
 
   async function save() {
     if (!valid || busy) return;
@@ -414,11 +428,11 @@ export function TaskEditor({
   return (
     <View style={{ gap: 14 }}>
       <Txt variant="heading">Edit task</Txt>
-      <Labeled label="Task">
-        <Field
+      <Labeled label="Task" hint="Select words to make them bold, italic, struck, underlined or coloured.">
+        <RichField
           value={title}
           onChangeText={setTitle}
-          maxLength={120}
+          maxLength={MAX_TASK_TITLE}
           autoFocus
           returnKeyType="done"
           onSubmitEditing={() => void save()}
