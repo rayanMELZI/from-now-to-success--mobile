@@ -27,13 +27,15 @@ import {
 import { tw, useTheme } from "@/lib/theme";
 import { Btn, IconBtn } from "./ui/Button";
 import { Card } from "./ui/Card";
-import { Field } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
 import { Segmented } from "./ui/Segmented";
 import { ToggleCard } from "./ui/ToggleCard";
 import { Txt } from "./ui/Txt";
 import { GaugeBar } from "./GaugeBar";
 import { ProgressRing, RiskBadge } from "./HabitBits";
+import { Field } from "./ui/Field";
+import { RichText } from "@/components/ui/RichText";
+import { plainText } from "@/lib/richText";
 
 export interface MissDraft {
   habitId: number;
@@ -147,9 +149,7 @@ function HabitHeadline({ entry, risk }: { entry: TodayEntry; risk: RiskLevel | n
     <View style={{ gap: 5 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         {entry.habitType === "QUIT" ? <Ban size={15} color={tw.red[500]} /> : <Sprout size={15} color={tw.emerald[600]} />}
-        <Txt weight="600" numberOfLines={1} style={{ flex: 1 }}>
-          {entry.name}
-        </Txt>
+        <RichText source={entry.name} weight="600" numberOfLines={1} style={{ flex: 1 }} />
       </View>
       {(periodic || risk) && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
@@ -281,10 +281,10 @@ export function PendingCard(props: PendingProps) {
         </View>
         {reordering && (
           <View style={{ gap: 2 }}>
-            <IconBtn label={`Move ${entry.name} up`} onPress={() => props.onMove(-1)} disabled={!props.canMoveUp} size={34} bordered>
+            <IconBtn label={`Move ${plainText(entry.name)} up`} onPress={() => props.onMove(-1)} disabled={!props.canMoveUp} size={34} bordered>
               <ArrowUp size={15} color={c.inkSoft} />
             </IconBtn>
-            <IconBtn label={`Move ${entry.name} down`} onPress={() => props.onMove(1)} disabled={!props.canMoveDown} size={34} bordered>
+            <IconBtn label={`Move ${plainText(entry.name)} down`} onPress={() => props.onMove(1)} disabled={!props.canMoveDown} size={34} bordered>
               <ArrowDown size={15} color={c.inkSoft} />
             </IconBtn>
           </View>
@@ -471,9 +471,7 @@ export function TimerCard({
     <Card style={{ gap: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Ban size={15} color={tw.red[500]} />
-        <Txt weight="600" numberOfLines={1} style={{ flex: 1 }}>
-          {entry.name}
-        </Txt>
+        <RichText source={entry.name} weight="600" numberOfLines={1} style={{ flex: 1 }} />
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
