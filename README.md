@@ -26,12 +26,14 @@ ticking the line ticks the task.
     Enter makes a new one in the next unused colour.
   - Filter by a tag, sort **by date** or **by tag** (remembered on the
     phone), and rename, recolour or delete tags from the Tags sheet.
-  - **Formatted titles** — while typing a task, a bar under the field makes
-    the selected words **bold**, _italic_, ~~struck~~, underlined or coloured
-    (or, with nothing selected, what you type next). The title is stored with
-    light marks (`**bold**`, `_italic_`, `~~struck~~`, `++underlined++`,
-    `{red:coloured}`) that count towards its 120 characters.
 - **Stats** — points, level, streaks and the last 30 days.
+- **Formatted text** everywhere you write: habit names and notes, plan lines,
+  task titles and the reason for a miss. While typing, a bar under the field
+  makes the selected words **bold**, _italic_, ~~struck~~, underlined or
+  coloured — or, with nothing selected, what you type next. Text is stored
+  with light marks (`**bold**`, `_italic_`, `~~struck~~`, `++underlined++`,
+  `{red:coloured}`), the same as the web app, and the marks count towards each
+  field's length limit. The roadmap canvas shows names as plain words.
 - **Archive** — put a habit you no longer need away with every habit that
   depends on it. It leaves the map, the check-in, the plan picker and the
   stats, but keeps its gauge, streaks and history; the "Archived" section
