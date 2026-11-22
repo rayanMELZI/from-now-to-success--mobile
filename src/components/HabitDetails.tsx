@@ -13,6 +13,7 @@ import { Banner } from "./ui/Card";
 import { Btn } from "./ui/Button";
 import { Txt } from "./ui/Txt";
 import { GaugeBar } from "./GaugeBar";
+import { RichText } from "@/components/ui/RichText";
 
 /** What the details sheet shows when an island or a list card is tapped. */
 export function HabitDetails({
@@ -84,14 +85,10 @@ export function HabitDetails({
       <View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {habit.habitType === "QUIT" && <Ban size={17} color={tw.red[500]} />}
-          <Txt variant="heading" style={{ flex: 1 }}>
-            {habit.name}
-          </Txt>
+          <RichText source={habit.name} variant="heading" style={{ flex: 1 }} />
         </View>
         {habit.description ? (
-          <Txt variant="small" color="soft" style={{ marginTop: 4 }}>
-            {habit.description}
-          </Txt>
+          <RichText source={habit.description} variant="small" color="soft" style={{ marginTop: 4 }} />
         ) : null}
       </View>
 
