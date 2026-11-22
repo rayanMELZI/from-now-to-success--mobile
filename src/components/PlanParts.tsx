@@ -15,7 +15,7 @@ import { tw, useTheme } from "@/lib/theme";
 import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
 import { DateTimeInput } from "./ui/Pickers";
-import { RichText } from "./ui/RichText";
+import { RichField, RichText } from "./ui/RichText";
 import { Txt } from "./ui/Txt";
 import { HabitPicker } from "./HabitPicker";
 
@@ -36,9 +36,7 @@ function HabitChip({ name, quit }: { name: string; quit: boolean }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: tone.accent.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
       {quit ? <Ban size={10} color={tone.accent.text} /> : <Sparkles size={10} color={tone.accent.text} />}
-      <Txt variant="tiny" color={tone.accent.text} numberOfLines={1}>
-        {name}
-      </Txt>
+      <RichText source={name} variant="tiny" color={tone.accent.text} numberOfLines={1} />
     </View>
   );
 }
@@ -126,7 +124,7 @@ export function BlockRow({
             hitSlop={14}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: block.done }}
-            accessibilityLabel={block.done ? `Undo ${block.title}` : `Mark ${block.title} done`}
+            accessibilityLabel={block.done ? `Undo ${plainText(block.title)}` : `Mark ${plainText(block.title)} done`}
             style={{
               width: 18,
               height: 18,
@@ -168,9 +166,7 @@ export function BlockRow({
         }}
       >
         <View style={{ flex: 1, gap: 5 }}>
-          <Txt variant="small" weight="600" color={block.done ? "faint" : "ink"} strike={block.done}>
-            {block.title}
-          </Txt>
+          <RichText source={block.title} variant="small" weight="600" color={block.done ? "faint" : "ink"} strike={block.done} />
           {(block.habitName || checkedIn) && (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
               {block.habitName && <HabitChip name={block.habitName} quit={habit?.habitType === "QUIT"} />}
@@ -186,7 +182,7 @@ export function BlockRow({
           )}
         </View>
         {!selecting && (
-          <IconBtn label={`Delete ${block.title}`} onPress={onDelete} size={32} disabled={busy}>
+          <IconBtn label={`Delete ${plainText(block.title)}`} onPress={onDelete} size={32} disabled={busy}>
             <Trash2 size={15} color={c.inkFaint} />
           </IconBtn>
         )}
@@ -332,7 +328,8 @@ export function BlockFields({
   const pickable = habits.filter(
     (h) => (h.status !== "LOCKED" && !h.archivedAt) || h.id === initial?.habitId,
   );
-  const valid = title.trim().length > 0;
+  // Some words, and within the server's 120 characters once formatted.
+  const valid = plainText(title).trim().length > 0 && title.trim().length <= 120;
 
   function pickHabit(habit: Habit) {
     if (habitId === habit.id) {
@@ -346,12 +343,12 @@ export function BlockFields({
   function pickTask(task: Task) {
     if (taskId === task.id) {
       setTaskId(null);
-      if (title.trim() === plainText(task.title)) setTitle("");
+      if (title.trim() === task.title) setTitle("");
       return;
     }
     setTaskId(task.id);
-    // A plan line is plain text: the task's words, without its formatting.
-    setTitle(plainText(task.title));
+    // Plan lines take formatting too, so the task comes over as it looks.
+    setTitle(task.title);
   }
 
   async function submit() {
@@ -379,29 +376,26 @@ export function BlockFields({
           {added} line{added === 1 ? "" : "s"} added — keep going, or close when you are done.
         </Txt>
       )}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <View style={{ width: 110 }}>
-          <Labeled label="Done at">
-            <DateTimeInput
-              mode="time"
-              value={minuteToDate(minute)}
-              onChange={(d) => setMinute(d.getHours() * 60 + d.getMinutes())}
-              accessibilityLabel="The time this is finished"
-            />
-          </Labeled>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Labeled label="What">
-            <Field
-              value={title}
-              maxLength={120}
-              onChangeText={setTitle}
-              placeholder="Finished doing what?"
-              returnKeyType="done"
-              onSubmitEditing={submit}
-            />
-          </Labeled>
-        </View>
+      {/* The line gets the full width: its formatting bar opens under it. */}
+      <Labeled label="What">
+        <RichField
+          value={title}
+          maxLength={120}
+          onChangeText={setTitle}
+          placeholder="Finished doing what?"
+          returnKeyType="done"
+          onSubmitEditing={submit}
+        />
+      </Labeled>
+      <View style={{ width: 110 }}>
+        <Labeled label="Done at">
+          <DateTimeInput
+            mode="time"
+            value={minuteToDate(minute)}
+            onChange={(d) => setMinute(d.getHours() * 60 + d.getMinutes())}
+            accessibilityLabel="The time this is finished"
+          />
+        </Labeled>
       </View>
 
       {!initial && tasks.length > 0 && (
