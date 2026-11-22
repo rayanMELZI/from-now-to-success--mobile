@@ -248,8 +248,14 @@ export function RichField({
               <ToolButton label="Clear formatting" onPress={clear}>
                 <RemoveFormatting size={16} color={c.inkSoft} />
               </ToolButton>
-              <View style={{ flex: 1 }} />
-              <Txt variant="tiny" color="faint" tabular style={{ paddingRight: 6 }}>
+              {/* The hint gives way first, so the buttons stay on one line. */}
+              <Txt
+                variant="tiny"
+                color="faint"
+                tabular
+                numberOfLines={1}
+                style={{ flex: 1, minWidth: 0, textAlign: "right", paddingRight: 6 }}
+              >
                 {collapsed ? "Select text to format it" : `${selection.end - selection.start} selected`}
               </Txt>
             </>
