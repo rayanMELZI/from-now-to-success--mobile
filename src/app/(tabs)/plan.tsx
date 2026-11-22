@@ -31,6 +31,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Txt } from "@/components/ui/Txt";
+import { plainText } from "@/lib/richText";
 
 /** Dates in the app's language, never the phone's — one place to change it. */
 const DATE_LOCALE = "en-GB";
@@ -289,7 +290,7 @@ function Planner() {
 
   function removeBlock(block: PlanBlock) {
     if (!day) return;
-    Alert.alert("Delete this line?", block.title, [
+    Alert.alert("Delete this line?", plainText(block.title), [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -327,8 +328,8 @@ function Planner() {
     const result = await api<CheckinResult>("/api/checkins", { method: "POST", body: { entries: [{ habitId, done: true }] } });
     setNotice(
       result.earnedPoints === 0
-        ? `${name} was already counted for today`
-        : `${name} checked in · ${result.earnedPoints > 0 ? "+" : ""}${result.earnedPoints} points`,
+        ? `${plainText(name)} was already counted for today`
+        : `${plainText(name)} checked in · ${result.earnedPoints > 0 ? "+" : ""}${result.earnedPoints} points`,
     );
     void Promise.all([invalidate(keys.today, keys.habits, ["history"]), refreshUser()]).catch(() => {});
   }
