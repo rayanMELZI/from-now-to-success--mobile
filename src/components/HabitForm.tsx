@@ -11,10 +11,12 @@ import {
   type TrackingMode,
 } from "@/lib/types";
 import { errorMessage } from "@/lib/api";
+import { plainText } from "@/lib/richText";
 import { tw, useTheme } from "@/lib/theme";
 import { Banner } from "./ui/Card";
 import { Btn } from "./ui/Button";
-import { Field, Labeled, Stepper } from "./ui/Field";
+import { Labeled, Stepper } from "./ui/Field";
+import { RichField } from "./ui/RichText";
 import { Segmented } from "./ui/Segmented";
 import { Txt } from "./ui/Txt";
 import { HabitPicker } from "./HabitPicker";
@@ -63,8 +65,13 @@ export function HabitForm({
   const goalDays = Math.max(1, Math.round(goalSeconds / DAY_SECONDS));
 
   async function submit() {
-    if (!name.trim()) {
+    if (!plainText(name).trim()) {
       setError("Give the habit a name first.");
+      return;
+    }
+    // The server's limits count the formatting marks too.
+    if (name.trim().length > 100 || description.length > 500) {
+      setError("Too long with its formatting — shorten it or remove some styles.");
       return;
     }
     setBusy(true);
@@ -100,7 +107,7 @@ export function HabitForm({
       {error && <Banner>{error}</Banner>}
 
       <Labeled label="Habit name">
-        <Field
+        <RichField
           value={name}
           onChangeText={setName}
           maxLength={100}
@@ -264,7 +271,7 @@ export function HabitForm({
 
       {advancedOpen && (
         <Labeled label="Notes (optional)">
-          <Field
+          <RichField
             value={description}
             onChangeText={setDescription}
             maxLength={500}
