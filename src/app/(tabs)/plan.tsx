@@ -340,6 +340,7 @@ function Planner() {
             setDay(fresh);
             setSelectedIds(new Set());
             setNotice(ids.length === 1 ? "Deleted 1 line" : `Deleted ${ids.length} lines`);
+            if (blocks.some((b) => ids.includes(b.id) && b.taskId !== null)) void invalidate(keys.tasks).catch(() => {});
           }),
       },
     ]);
@@ -367,6 +368,8 @@ function Planner() {
       return;
     }
     if (done) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    // A line pulled from the tasks list ticks its task too.
+    if (targets.some((b) => b.taskId !== null)) void invalidate(keys.tasks).catch(() => {});
 
     const habitIds = done
       ? [
