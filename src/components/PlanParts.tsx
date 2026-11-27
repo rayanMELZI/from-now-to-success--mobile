@@ -99,7 +99,7 @@ export function BlockRow({
 
   return (
     <View style={{ flexDirection: "row", gap: 10 }}>
-      {/* rail: the dot is the done switch — or, in shift mode, the tick box */}
+      {/* rail: the dot is the done switch — or, in select mode, the tick box */}
       <View style={{ width: 18, alignItems: "center", paddingTop: 10 }}>
         {selecting ? (
           <View
@@ -182,11 +182,15 @@ export function BlockRow({
             </View>
           )}
         </View>
-        {!selecting && (
+        {/* Kept in select mode too: retiming a line and rewording it are often one job. */}
+        <View style={{ flexDirection: "row", gap: 2 }}>
+          <IconBtn label={`Edit ${block.title}`} onPress={onEdit} size={32}>
+            <Pencil size={15} color={c.inkFaint} />
+          </IconBtn>
           <IconBtn label={`Delete ${block.title}`} onPress={onDelete} size={32} disabled={busy}>
             <Trash2 size={15} color={c.inkFaint} />
           </IconBtn>
-        )}
+        </View>
       </Pressable>
     </View>
   );
