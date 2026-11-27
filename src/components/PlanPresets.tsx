@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { ArrowLeft, Bookmark, LayoutTemplate, Pencil, Plus, Trash2, X } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
+import { plainText } from "@/lib/richText";
 import { formatMinute, type Habit, type PlanPreset } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
 import { Banner, Card } from "./ui/Card";
@@ -9,6 +10,7 @@ import { Btn, IconBtn } from "./ui/Button";
 import { Field, Labeled } from "./ui/Field";
 import { DateTimeInput, SelectField } from "./ui/Pickers";
 import { Sheet } from "./ui/Sheet";
+import { RichField, RichText } from "./ui/RichText";
 import { Txt } from "./ui/Txt";
 
 /** The server's limits, so the editor stops before it is told off. */
@@ -186,9 +188,7 @@ export function PresetsSheet({
                       <Txt variant="tiny" color="faint" tabular style={{ width: 40 }}>
                         {formatMinute(line.endMinute)}
                       </Txt>
-                      <Txt variant="tiny" color="soft" numberOfLines={1} style={{ flex: 1 }}>
-                        {line.title}
-                      </Txt>
+                      <RichText variant="tiny" color="soft" numberOfLines={1} style={{ flex: 1 }} source={line.title} />
                     </View>
                   ))}
                   {preset.lines.length > 4 && (
@@ -252,7 +252,7 @@ function PresetEditor({
   // Locked habits are not doable yet; one a line already names stays listed.
   const linkedIds = new Set(lines.map((l) => l.habitId));
   const pickable = habits.filter((h) => h.status !== "LOCKED" || linkedIds.has(h.id));
-  const habitOptions = [{ value: 0, label: "No habit" }, ...pickable.map((h) => ({ value: h.id, label: h.name }))];
+  const habitOptions = [{ value: 0, label: "No habit" }, ...pickable.map((h) => ({ value: h.id, label: plainText(h.name) }))];
 
   const patch = (key: number, change: Partial<DraftLine>) =>
     setLines((current) => current.map((l) => (l.key === key ? { ...l, ...change } : l)));
@@ -271,7 +271,7 @@ function PresetEditor({
       return;
     }
     // A blank row is just an unused one, not a mistake.
-    const filled = lines.filter((l) => l.title.trim() !== "");
+    const filled = lines.filter((l) => plainText(l.title).trim() !== "");
     if (filled.length === 0) {
       setError("A preset needs at least one line");
       return;
@@ -319,7 +319,7 @@ function PresetEditor({
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Field
+              <RichField
                 value={line.title}
                 onChangeText={(title) => patch(line.key, { title })}
                 maxLength={MAX_TITLE}
@@ -347,7 +347,7 @@ function PresetEditor({
                 // Picking a habit for an untitled line names the line after it.
                 patch(line.key, {
                   habitId: value === 0 ? null : value,
-                  ...(habit && line.title.trim() === "" ? { title: habit.name } : {}),
+                  ...(habit && plainText(line.title).trim() === "" ? { title: habit.name } : {}),
                 });
               }}
             />
