@@ -177,6 +177,11 @@ function Planner() {
       current && { ...current, blocks: current.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) },
     );
 
+  function startSelecting() {
+    setEditing(null);
+    setSelecting(true);
+  }
+
   function stopSelecting() {
     setSelecting(false);
     setSelectedIds(new Set());
@@ -540,9 +545,10 @@ function Planner() {
             <Btn
               size="sm"
               variant="ghost"
-              label="Shift"
+              label="Select"
               icon={<ListChecks size={14} color={c.ink} />}
-              onPress={() => setSelecting(true)}
+              onPress={startSelecting}
+              accessibilityLabel="Pick lines to move them in time, tick them off or delete them together"
             />
           )}
         </View>
