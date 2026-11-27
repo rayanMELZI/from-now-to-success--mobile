@@ -3,7 +3,7 @@ import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, ListChecks, Plus, Sparkles } from "lucide-react-native";
+import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, LayoutTemplate, ListChecks, Plus, Sparkles } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth, useUser } from "@/lib/auth";
 import {
@@ -14,13 +14,15 @@ import {
   type Habit,
   type PlanBlock,
   type PlanDay,
+  type PlanPreset,
   type PlanShiftResult,
   type TodayEntry,
 } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { invalidate, keys, useHabits, usePlanDay, useRefreshOnFocus, useToday } from "@/lib/queries";
+import { invalidate, keys, useHabits, usePlanDay, usePlanPresets, useRefreshOnFocus, useToday } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
 import { BlockFields, BlockRow, DAY_MINUTES, NowLine, ShiftBar } from "@/components/PlanParts";
+import { PresetsSheet, presetSummary } from "@/components/PlanPresets";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn, IconBtn } from "@/components/ui/Button";
 import { DateTimeInput, SelectField } from "@/components/ui/Pickers";
@@ -102,7 +104,9 @@ function Planner() {
   const day = dayQuery.data ?? null;
   const habits = useHabits().data ?? [];
   const today = useToday().data ?? null;
-  useRefreshOnFocus(keys.plan(date), keys.habits, keys.today);
+  const presets = usePlanPresets().data ?? [];
+  useRefreshOnFocus(keys.plan(date), keys.habits, keys.today, keys.presets);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState<PlanBlock | null>(null);
   const [selecting, setSelecting] = useState(false);
@@ -290,6 +294,29 @@ function Planner() {
     });
   }
 
+  /** Lays a preset out on the (empty) day being looked at. */
+  async function applyPreset(preset: PlanPreset) {
+    if (!day) return;
+    // Closed first, so a refusal lands in the screen's banner, in plain sight.
+    setPresetsOpen(false);
+    await run(async () => {
+      const applied = await api<PlanDay>(`/api/plan/apply-preset?date=${day.date}`, {
+        method: "POST",
+        body: { presetId: preset.id },
+      });
+      setDay(applied);
+      setNotice(`Started from "${preset.name}" — change anything you like`);
+    });
+  }
+
+  /** Keeps the day being looked at as a new preset. Errors are the sheet's to show. */
+  async function saveDayAsPreset(name: string) {
+    if (!day) return;
+    const saved = await api<PlanPreset>("/api/plan/presets/from-day", { method: "POST", body: { name, date: day.date } });
+    await invalidate(keys.presets);
+    setNotice(`Saved as the preset "${saved.name}"`);
+  }
+
   /** The one bridge to the game. */
   async function checkIn(habitId: number, name: string) {
     const result = await api<CheckinResult>("/api/checkins", { method: "POST", body: { entries: [{ habitId, done: true }] } });
@@ -339,6 +366,17 @@ function Planner() {
           </IconBtn>
         </View>
       )}
+      <PresetsSheet
+        open={presetsOpen}
+        onClose={() => setPresetsOpen(false)}
+        presets={presets}
+        habits={habits}
+        dayHasPlan={blocks.length > 0}
+        busy={busy}
+        onChanged={() => invalidate(keys.presets)}
+        onApply={applyPreset}
+        onSaveDay={saveDayAsPreset}
+      />
       <Sheet open={composing} onClose={() => setComposing(false)} tall>
         <BlockFields
           key={`${day.date}-${composing}`}
@@ -378,6 +416,16 @@ function Planner() {
           day: "numeric",
           month: "long",
         })}`}
+        actions={
+          <Btn
+            size="sm"
+            variant="ghost"
+            label="Presets"
+            icon={<LayoutTemplate size={14} color={c.ink} />}
+            onPress={() => setPresetsOpen(true)}
+            accessibilityLabel="Day presets: start a day from a template, or keep this one as one"
+          />
+        }
       />
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -435,7 +483,17 @@ function Planner() {
       )}
 
       {blocks.length === 0 ? (
-        <EmptyDay plannedDates={day.plannedDates} date={day.date} today={day.today} busy={busy} onCopy={copyFrom} onAdd={() => setComposing(true)} />
+        <EmptyDay
+          plannedDates={day.plannedDates}
+          date={day.date}
+          today={day.today}
+          busy={busy}
+          onCopy={copyFrom}
+          onAdd={() => setComposing(true)}
+          presets={presets}
+          onApplyPreset={applyPreset}
+          onOpenPresets={() => setPresetsOpen(true)}
+        />
       ) : (
         <View>
           {slots.map((slot, index) => {
@@ -511,6 +569,9 @@ function EmptyDay({
   busy,
   onCopy,
   onAdd,
+  presets,
+  onApplyPreset,
+  onOpenPresets,
 }: {
   plannedDates: string[];
   date: string;
@@ -518,12 +579,18 @@ function EmptyDay({
   busy: boolean;
   onCopy: (from: string) => void;
   onAdd: () => void;
+  presets: PlanPreset[];
+  onApplyPreset: (preset: PlanPreset) => void;
+  onOpenPresets: () => void;
 }) {
   const { c } = useTheme();
   // Yesterday is the usual answer: the most recent planned day before this one.
   const nearest = plannedDates.find((d) => d < date) ?? plannedDates[plannedDates.length - 1];
   const [source, setSource] = useState(nearest ?? "");
   const chosen = plannedDates.includes(source) ? source : (nearest ?? "");
+  // Presets keep the order they were made in; the first is the one to hand.
+  const [presetId, setPresetId] = useState<number | null>(null);
+  const preset = presets.find((p) => p.id === presetId) ?? presets[0] ?? null;
 
   return (
     <View style={{ borderWidth: 1.5, borderStyle: "dashed", borderColor: c.lineStrong, borderRadius: 18, padding: 22, alignItems: "center", gap: 8 }}>
@@ -535,7 +602,29 @@ function EmptyDay({
       <Txt variant="tiny" color="faint" center style={{ fontFamily: "monospace", lineHeight: 18 }}>
         {"(12:00) Planning\n(12:10) prayer\n(12:20) Write dailies"}
       </Txt>
-      <Btn label="Add the first line" icon={<Plus size={15} color="#fff" />} onPress={onAdd} style={{ alignSelf: "stretch", marginTop: 4 }} />
+      {/* A preset is what the day was meant to look like, so it comes first. */}
+      {preset ? (
+        <View style={{ alignSelf: "stretch", gap: 8, marginTop: 4 }}>
+          <SelectField
+            title="Start from a preset"
+            value={preset.id}
+            onChange={setPresetId}
+            icon={<LayoutTemplate size={15} color={c.inkFaint} />}
+            options={presets.map((p) => ({ value: p.id, label: p.name, hint: presetSummary(p) }))}
+          />
+          <Btn label="Start from this preset" icon={<LayoutTemplate size={15} color="#fff" />} onPress={() => onApplyPreset(preset)} loading={busy} />
+        </View>
+      ) : null}
+      <Btn
+        variant={preset ? "ghost" : "primary"}
+        label="Add the first line"
+        icon={<Plus size={15} color={preset ? c.ink : "#fff"} />}
+        onPress={onAdd}
+        style={{ alignSelf: "stretch", marginTop: 4 }}
+      />
+      {!preset && (
+        <Btn variant="plain" size="sm" label="Make a preset for the kinds of day you live" icon={<LayoutTemplate size={14} color={c.inkSoft} />} onPress={onOpenPresets} />
+      )}
       {chosen ? (
         <View style={{ alignSelf: "stretch", gap: 8, marginTop: 6 }}>
           <Txt variant="label">Or copy a day you already planned</Txt>
