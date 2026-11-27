@@ -196,8 +196,12 @@ export function BlockRow({
   );
 }
 
-/** Shift mode's control panel, floating at the foot of the screen. */
-export function ShiftBar({
+/**
+ * Select mode's control panel: everything that acts on the picked lines at
+ * once, floating at the foot of the screen so a line picked at the bottom of
+ * a long plan never means scrolling back up.
+ */
+export function SelectBar({
   selectedCount,
   totalCount,
   amount,
@@ -240,7 +244,7 @@ export function ShiftBar({
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Txt variant="small" weight="700" style={{ flex: 1 }}>
-            {selectedCount === 0 ? "Pick the lines to move" : `${selectedCount} of ${totalCount} picked`}
+            {selectedCount === 0 ? "Pick the lines to change" : `${selectedCount} of ${totalCount} picked`}
           </Txt>
           <Btn
             size="sm"
@@ -248,13 +252,13 @@ export function ShiftBar({
             label={selectedCount === totalCount ? "Clear" : "Select all"}
             onPress={selectedCount === totalCount ? onClear : onSelectAll}
           />
-          <IconBtn label="Leave shift mode" onPress={onDone} size={32}>
+          <IconBtn label="Leave select mode" onPress={onDone} size={32}>
             <X size={16} color={c.inkSoft} />
           </IconBtn>
         </View>
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-          <Txt variant="label">By</Txt>
+          <Txt variant="label">Move by</Txt>
           {SHIFT_PRESETS.map((preset) => (
             <Pressable
               key={preset}

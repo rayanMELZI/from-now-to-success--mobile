@@ -21,7 +21,7 @@ import {
 import { tw, useTheme } from "@/lib/theme";
 import { invalidate, keys, useHabits, usePlanDay, usePlanPresets, useRefreshOnFocus, useToday } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
-import { BlockFields, BlockRow, DAY_MINUTES, NowLine, ShiftBar } from "@/components/PlanParts";
+import { BlockFields, BlockRow, DAY_MINUTES, NowLine, SelectBar } from "@/components/PlanParts";
 import { PresetsSheet, presetSummary } from "@/components/PlanPresets";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn, IconBtn } from "@/components/ui/Button";
@@ -347,7 +347,7 @@ function Planner() {
   const overlay = (
     <>
       {selecting && (
-        <ShiftBar
+        <SelectBar
           selectedCount={selectedIds.size}
           totalCount={blocks.length}
           amount={shiftAmount}
