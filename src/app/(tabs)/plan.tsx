@@ -555,16 +555,6 @@ function Planner() {
             </Txt>{" "}
             {doneCount}/{blocks.length}
           </Txt>
-          {!selecting && (
-            <Btn
-              size="sm"
-              variant="ghost"
-              label="Select"
-              icon={<ListChecks size={14} color={c.ink} />}
-              onPress={startSelecting}
-              accessibilityLabel="Pick lines to move them in time, tick them off or delete them together"
-            />
-          )}
         </View>
       )}
 
