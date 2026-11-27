@@ -486,7 +486,7 @@ function Planner() {
   );
 
   return (
-    <Screen onRefresh={reload} overlay={overlay} contentStyle={{ paddingBottom: selecting ? 260 : 110 }}>
+    <Screen onRefresh={reload} overlay={overlay} contentStyle={{ paddingBottom: selecting ? 320 : 110 }}>
       <ScreenHeader
         title="Daily plan"
         subtitle={`${dayLabel(day.date, day.today)} · ${parseIso(day.date).toLocaleDateString(DATE_LOCALE, {
