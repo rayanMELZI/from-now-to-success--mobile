@@ -6,6 +6,8 @@ import { useTheme } from "@/lib/theme";
 import { Field } from "./ui/Field";
 import { Txt } from "./ui/Txt";
 import { HabitIcon } from "./HabitBits";
+import { RichText } from "@/components/ui/RichText";
+import { plainText } from "@/lib/richText";
 
 interface HabitPickerProps {
   habits: Habit[];
@@ -50,7 +52,7 @@ export function HabitPicker({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? ordered.filter((h) => h.name.toLowerCase().includes(q)) : ordered;
+    return q ? ordered.filter((h) => plainText(h.name).toLowerCase().includes(q)) : ordered;
   }, [ordered, query]);
 
   if (habits.length === 0) return null;
@@ -83,9 +85,7 @@ export function HabitPicker({
               }}
             >
               {on ? <Check size={12} color={tone.accent.text} strokeWidth={3.5} /> : <HabitIcon habit={habit} size={12} />}
-              <Txt variant="small" weight="500" color={on ? tone.accent.text : "soft"} numberOfLines={1} style={{ flexShrink: 1 }}>
-                {habit.name}
-              </Txt>
+              <RichText source={habit.name} variant="small" weight="500" color={on ? tone.accent.text : "soft"} numberOfLines={1} style={{ flexShrink: 1 }} />
               {meta?.(habit)}
             </Pressable>
           );
@@ -104,7 +104,7 @@ export function HabitPicker({
             <Pressable
               key={habit.id}
               onPress={() => onToggle(habit)}
-              accessibilityLabel={`Remove ${habit.name}`}
+              accessibilityLabel={`Remove ${plainText(habit.name)}`}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -116,9 +116,7 @@ export function HabitPicker({
               }}
             >
               <HabitIcon habit={habit} size={11} />
-              <Txt variant="tiny" weight="600" color={tone.accent.text} numberOfLines={1} style={{ maxWidth: 160 }}>
-                {habit.name}
-              </Txt>
+              <RichText source={habit.name} variant="tiny" weight="600" color={tone.accent.text} numberOfLines={1} style={{ maxWidth: 160 }} />
               <X size={11} color={tone.accent.text} />
             </Pressable>
           ))}
@@ -189,16 +187,14 @@ export function HabitPicker({
                     {on && <Check size={12} color="#fff" strokeWidth={3.5} />}
                   </View>
                   <HabitIcon habit={habit} />
-                  <Txt variant="small" numberOfLines={1} style={{ flex: 1 }}>
-                    {habit.name}
-                  </Txt>
+                  <RichText source={habit.name} variant="small" numberOfLines={1} style={{ flex: 1 }} />
                   {meta?.(habit)}
                 </Pressable>
                 {onToggleMuted && muted && (
                   <Pressable
                     onPress={() => onToggleMuted(habit)}
                     accessibilityLabel={
-                      aside ? `Bring ${habit.name} back up the list` : `Set ${habit.name} aside`
+                      aside ? `Bring ${plainText(habit.name)} back up the list` : `Set ${plainText(habit.name)} aside`
                     }
                     hitSlop={4}
                     style={{ paddingHorizontal: 14, justifyContent: "center", opacity: aside ? 1 : 0.45 }}

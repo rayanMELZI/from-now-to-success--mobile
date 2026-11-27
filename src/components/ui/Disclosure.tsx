@@ -8,6 +8,7 @@ import { Txt } from "./Txt";
 /** A titled section that folds away, remembering whether it was open. */
 export function Disclosure({
   title,
+  icon,
   count,
   summary,
   storageKey,
@@ -15,6 +16,7 @@ export function Disclosure({
   children,
 }: {
   title: string;
+  icon?: ReactNode;
   count?: number;
   summary?: string;
   storageKey: string;
@@ -37,6 +39,7 @@ export function Disclosure({
           color={c.inkSoft}
           style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}
         />
+        {icon}
         <Txt variant="label">{title}</Txt>
         {count !== undefined && (
           <View

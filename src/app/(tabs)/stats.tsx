@@ -14,6 +14,7 @@ import { Banner, Card, Chip } from "@/components/ui/Card";
 import { Screen, ScreenHeader } from "@/components/ui/Screen";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Txt } from "@/components/ui/Txt";
+import { RichText } from "@/components/ui/RichText";
 
 const POINTS_PER_LEVEL = 500;
 const DONE = tw.emerald[600];
@@ -158,7 +159,8 @@ export default function StatsScreen() {
   const habitsQuery = useHabits();
   useRefreshOnFocus(keys.history(30), keys.habits);
   const history = historyQuery.data;
-  const habits = habitsQuery.data;
+  // Archived habits are put away: the tiles and streaks count what is in use.
+  const habits = habitsQuery.data?.filter((h) => !h.archivedAt);
   const loadError = historyQuery.error ?? habitsQuery.error;
   const error = loadError ? errorMessage(loadError) : null;
 
@@ -219,9 +221,7 @@ export default function StatsScreen() {
               <View key={habit.id} style={{ gap: 8, paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: c.line }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   {habit.habitType === "QUIT" && <Ban size={13} color={tw.red[500]} />}
-                  <Txt variant="small" style={{ flexShrink: 1 }}>
-                    {habit.name}
-                  </Txt>
+                  <RichText source={habit.name} variant="small" style={{ flexShrink: 1 }} />
                   {habit.status === "VALID" && <Chip tone="success" label="valid" />}
                   {risk && <RiskBadge risk={risk} />}
                 </View>

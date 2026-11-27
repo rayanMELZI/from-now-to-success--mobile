@@ -3,7 +3,7 @@ import { useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery, type QueryKey } from "@tanstack/react-query";
 import { api } from "./api";
 import { queryClient } from "./queryClient";
-import type { Habit, HistoryDay, PlanDay, PlanPreset, TodayResponse, UserInfo } from "./types";
+import type { Habit, HistoryDay, PlanDay, PlanPreset, Task, TaskList, TodayResponse, UserInfo } from "./types";
 
 /** Every piece of server data the app shows, under one key each. */
 export const keys = {
@@ -14,6 +14,7 @@ export const keys = {
   plan: (date: string | null) => ["plan", date ?? "today"] as const,
   me: ["me"] as const,
   presets: ["plan-presets"] as const,
+  tasks: ["tasks"] as const,
 };
 
 export const fetchHabits = () => api<Habit[]>("/api/habits");
@@ -34,6 +35,19 @@ export const usePlanDay = (date: string | null) =>
 
 export const usePlanPresets = () =>
   useQuery({ queryKey: keys.presets, queryFn: () => api<PlanPreset[]>("/api/plan/presets") });
+
+export const fetchTasks = () => api<TaskList>("/api/tasks");
+
+/** A list saved on the phone before tags existed has none: read it as untagged. */
+function withTags(list: TaskList): TaskList {
+  if (list.tags && list.open.every((t) => t.tags) && list.done.every((t) => t.tags)) return list;
+  const tag = (t: Task): Task => ({ ...t, tags: t.tags ?? [] });
+  return { ...list, tags: list.tags ?? [], open: list.open.map(tag), done: list.done.map(tag) };
+}
+
+/** Only asked for while the tasks list is turned on. */
+export const useTaskList = (enabled = true) =>
+  useQuery({ queryKey: keys.tasks, queryFn: fetchTasks, enabled, select: withTags });
 
 /** Warms the cache for the tabs the user has not opened yet. */
 export function prefetchEssentials() {

@@ -16,6 +16,8 @@ export interface UserInfo {
   weekStartDay: number;
   /** Opt-in: reveals the daily plan page and its nav tab. */
   plannerEnabled: boolean;
+  /** Opt-in: reveals the tasks tab and the plan's "from your tasks" picks. */
+  tasksEnabled: boolean;
 }
 
 export interface Habit {
@@ -43,7 +45,60 @@ export interface Habit {
   sortOrder: number;
   /** Set aside in the plan picker: still pickable, but greyed and listed last. */
   plannerMuted: boolean;
+  /** Put away with its branch: off the map and the check-in, progress kept. */
+  archivedAt: string | null;
   prerequisiteIds: number[];
+}
+
+/**
+ * The archived habits that head their own archive: none of their
+ * prerequisites went away with them or before them. Each comes with the
+ * habits that were put away along with it, which restoring brings back.
+ */
+export function archivedBranches(habits: Habit[]): { root: Habit; members: Habit[] }[] {
+  const byId = new Map(habits.map((h) => [h.id, h]));
+  const archivedAt = (h: Habit) => (h.archivedAt ? Date.parse(h.archivedAt) : null);
+  const isRoot = (h: Habit) =>
+    h.prerequisiteIds.every((id) => {
+      const p = byId.get(id);
+      const at = p ? archivedAt(p) : null;
+      return at === null || at > archivedAt(h)!;
+    });
+  return habits
+    .filter((h) => h.archivedAt && isRoot(h))
+    .map((root) => {
+      // Walk downstream through habits archived in the same move.
+      const members: Habit[] = [];
+      const seen = new Set([root.id]);
+      const queue = [root];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        for (const h of habits) {
+          if (seen.has(h.id) || !h.prerequisiteIds.includes(current.id)) continue;
+          if (h.archivedAt !== root.archivedAt) continue;
+          seen.add(h.id);
+          members.push(h);
+          queue.push(h);
+        }
+      }
+      return { root, members };
+    });
+}
+
+/** How many habits sit downstream of this one — what archiving it takes along. */
+export function dependentCount(habit: Habit, habits: Habit[]): number {
+  const seen = new Set([habit.id]);
+  const queue = [habit.id];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const h of habits) {
+      if (!seen.has(h.id) && h.prerequisiteIds.includes(current)) {
+        seen.add(h.id);
+        queue.push(h.id);
+      }
+    }
+  }
+  return seen.size - 1;
 }
 
 export interface HabitRequest {
@@ -156,6 +211,8 @@ export interface PlanBlock {
   habitId: number | null;
   /** The linked habit's current name — it may have been renamed since. */
   habitName: string | null;
+  /** The task this block stands for, if it was pulled from the tasks list. */
+  taskId: number | null;
   done: boolean;
 }
 
@@ -201,6 +258,55 @@ export interface PlanBlockRequest {
   title: string;
   endMinute: number;
   habitId?: number | null;
+  taskId?: number | null;
+}
+
+/** The palette a task tag picks from (the server checks the same names). */
+export const TAG_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "sky",
+  "indigo",
+  "violet",
+  "pink",
+] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+
+/** Tags a user can define, how many one task can carry, and how long a name can be. */
+export const MAX_TAGS = 30;
+export const MAX_TAGS_PER_TASK = 5;
+export const MAX_TAG_NAME = 24;
+
+export interface TaskTag {
+  id: number;
+  name: string;
+  color: TagColor;
+}
+
+/** A one-off thing to get done — no rhythm, no points. */
+export interface Task {
+  id: number;
+  title: string;
+  /** "2026-10-30": the day it should be done by, or null for no deadline. */
+  dueDate: string | null;
+  done: boolean;
+  /** In the order the tags were made. */
+  tags: TaskTag[];
+}
+
+export interface TaskList {
+  /** The user's logical today, so a deadline can read "overdue". */
+  today: string;
+  /** Still to do: deadlines first (soonest on top), then the rest oldest first. */
+  open: Task[];
+  /** Recently finished, most recent first. */
+  done: Task[];
+  /** Every tag the user has, oldest first. */
+  tags: TaskTag[];
 }
 
 /** Wording flips for QUIT habits: success = avoiding it. */

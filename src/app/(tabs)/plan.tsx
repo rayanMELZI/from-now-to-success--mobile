@@ -3,7 +3,7 @@ import { usePerfFocus } from "@/lib/perf";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, LayoutTemplate, ListChecks, Plus, Sparkles } from "lucide-react-native";
+import { CalendarDays, ChevronLeft, ChevronRight, CircleCheckBig, ClipboardList, Copy, LayoutTemplate, ListChecks, Plus, Sparkles } from "lucide-react-native";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth, useUser } from "@/lib/auth";
 import {
@@ -19,17 +19,21 @@ import {
   type TodayEntry,
 } from "@/lib/types";
 import { tw, useTheme } from "@/lib/theme";
-import { invalidate, keys, useHabits, usePlanDay, usePlanPresets, useRefreshOnFocus, useToday } from "@/lib/queries";
+import { invalidate, keys, useHabits, usePlanDay, usePlanPresets, useRefreshOnFocus, useTaskList, useToday } from "@/lib/queries";
 import { queryClient } from "@/lib/queryClient";
+import { usePersistentState } from "@/lib/usePersistentState";
+import { TasksView } from "@/components/TasksView";
 import { BlockFields, BlockRow, DAY_MINUTES, NowLine, SelectBar } from "@/components/PlanParts";
 import { PresetsSheet, presetSummary } from "@/components/PlanPresets";
 import { Banner, Card } from "@/components/ui/Card";
 import { Btn, IconBtn } from "@/components/ui/Button";
 import { DateTimeInput, SelectField } from "@/components/ui/Pickers";
 import { Screen, ScreenHeader } from "@/components/ui/Screen";
+import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
 import { SkeletonScreen } from "@/components/ui/Skeleton";
 import { Txt } from "@/components/ui/Txt";
+import { plainText } from "@/lib/richText";
 
 /** Dates in the app's language, never the phone's — one place to change it. */
 const DATE_LOCALE = "en-GB";
@@ -90,7 +94,32 @@ export default function PlanScreen() {
   usePerfFocus("plan");
   const user = useUser();
   if (!user.plannerEnabled) return <PlannerOff />;
+  if (user.tasksEnabled) return <PlanWithTasks />;
   return <Planner />;
+}
+
+/**
+ * Plan and tasks both on: the phone's tab bar has no room left for a sixth
+ * tab, so the list sits beside the plan here, one switch away.
+ */
+function PlanWithTasks() {
+  const { c } = useTheme();
+  const [view, setView] = usePersistentState<"plan" | "tasks">("plan-view", "plan");
+  return (
+    <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <Segmented
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "plan", label: "Plan", icon: <ClipboardList size={14} color={c.inkSoft} /> },
+            { value: "tasks", label: "Tasks", icon: <CircleCheckBig size={14} color={c.inkSoft} /> },
+          ]}
+        />
+      </View>
+      {view === "plan" ? <Planner /> : <TasksView />}
+    </View>
+  );
 }
 
 function Planner() {
@@ -105,6 +134,8 @@ function Planner() {
   const habits = useHabits().data ?? [];
   const today = useToday().data ?? null;
   const presets = usePlanPresets().data ?? [];
+  // Open tasks, to pull into a line — only asked for while the list is on.
+  const openTasks = useTaskList(user.tasksEnabled).data?.open ?? [];
   useRefreshOnFocus(keys.plan(date), keys.habits, keys.today, keys.presets);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -193,20 +224,20 @@ function Planner() {
     setDate(day && next === day.today ? null : next);
   };
 
-  async function addBlock(title: string, endMinute: number, habitId: number | null): Promise<boolean> {
+  async function addBlock(title: string, endMinute: number, habitId: number | null, taskId: number | null): Promise<boolean> {
     if (!day) return false;
     const ok = await run(async () => {
-      await api<PlanBlock>(`/api/plan?date=${day.date}`, { method: "POST", body: { title, endMinute, habitId } });
+      await api<PlanBlock>(`/api/plan?date=${day.date}`, { method: "POST", body: { title, endMinute, habitId, taskId } });
       await refetchDay();
       return true;
     });
     return ok === true;
   }
 
-  async function saveBlock(id: number, title: string, endMinute: number, habitId: number | null): Promise<boolean> {
+  async function saveBlock(id: number, title: string, endMinute: number, habitId: number | null, taskId: number | null): Promise<boolean> {
     if (!day) return false;
     const ok = await run(async () => {
-      await api<PlanBlock>(`/api/plan/${id}`, { method: "PUT", body: { title, endMinute, habitId } });
+      await api<PlanBlock>(`/api/plan/${id}`, { method: "PUT", body: { title, endMinute, habitId, taskId } });
       await refetchDay();
       setEditing(null);
       return true;
@@ -248,6 +279,8 @@ function Planner() {
     try {
       const saved = await api<PlanBlock>(`/api/plan/${block.id}/done`, { method: "PUT", body: { done } });
       patchBlock(block.id, saved);
+      // The line IS the task: the server ticked it along.
+      if (block.taskId !== null) void invalidate(keys.tasks).catch(() => {});
     } catch (err) {
       patchBlock(block.id, { done: block.done });
       setError(errorMessage(err));
@@ -266,7 +299,7 @@ function Planner() {
 
   function removeBlock(block: PlanBlock) {
     if (!day) return;
-    Alert.alert("Delete this line?", block.title, [
+    Alert.alert("Delete this line?", plainText(block.title), [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -403,8 +436,8 @@ function Planner() {
     const result = await api<CheckinResult>("/api/checkins", { method: "POST", body: { entries: [{ habitId, done: true }] } });
     setNotice(
       result.earnedPoints === 0
-        ? `${name} was already counted for today`
-        : `${name} checked in · ${result.earnedPoints > 0 ? "+" : ""}${result.earnedPoints} points`,
+        ? `${plainText(name)} was already counted for today`
+        : `${plainText(name)} checked in · ${result.earnedPoints > 0 ? "+" : ""}${result.earnedPoints} points`,
     );
     void Promise.all([invalidate(keys.today, keys.habits, ["history"]), refreshUser()]).catch(() => {});
   }
@@ -481,6 +514,8 @@ function Planner() {
           busy={busy}
           suggestedMinute={suggestedMinute}
           plannedHabitIds={blocks.map((b) => b.habitId).filter((id): id is number => id !== null)}
+          tasks={openTasks}
+          plannedTaskIds={blocks.map((b) => b.taskId).filter((id): id is number => id !== null)}
           today={today}
           isToday={isToday}
           onSubmit={addBlock}
@@ -495,7 +530,7 @@ function Planner() {
             habits={habits}
             initial={editing}
             busy={busy}
-            onSubmit={(title, endMinute, habitId) => saveBlock(editing.id, title, endMinute, habitId)}
+            onSubmit={(title, endMinute, habitId, taskId) => saveBlock(editing.id, title, endMinute, habitId, taskId)}
             onCancel={() => setEditing(null)}
             onToggleMuted={toggleMuted}
           />

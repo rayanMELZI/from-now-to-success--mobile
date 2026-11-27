@@ -7,6 +7,41 @@ habit's gauge fills toward validation.
 It is a client of the same Spring Boot backend as the web app — same account,
 same habits, same points. Nothing is stored only on the phone.
 
+The daily plan and the tasks list are opt-in, from Settings › Extras. Each adds
+its own tab; with both on, the tasks sit inside the Plan tab (Android's tab bar
+holds five tabs at most), and a task can be pulled into a line of the plan —
+ticking the line ticks the task.
+
+## Features
+
+- **Roadmap** — habits as islands on a map from "now" to "success" (pan,
+  pinch-zoom) or as a searchable list; a habit unlocks once its prerequisites
+  are validated.
+- **Check-in** — answer each scheduled habit, or reset a timer habit's clock.
+- **Plan** (opt-in) — lay the day out hour by hour and pull habits into it.
+- **Tasks** (opt-in) — a to-do list; a task can be pulled into a line of the
+  plan.
+  - **Coloured tags** — up to 5 per task, 30 in all. The tag button on a row
+    opens a checklist: each tick is saved at once, typing finds a tag and
+    Enter makes a new one in the next unused colour.
+  - Filter by a tag, sort **by date** or **by tag** (remembered on the
+    phone), and rename, recolour or delete tags from the Tags sheet.
+- **Stats** — points, level, streaks and the last 30 days.
+- **Formatted text** everywhere you write: habit names and notes, plan lines,
+  task titles and the reason for a miss. While typing, a bar under the field
+  makes the selected words **bold**, _italic_, ~~struck~~, underlined or
+  coloured — or, with nothing selected, what you type next. Text is stored
+  with light marks (`**bold**`, `_italic_`, `~~struck~~`, `++underlined++`,
+  `{red:coloured}`), the same as the web app, and the marks count towards each
+  field's length limit. The roadmap canvas shows names as plain words.
+- **Archive** — put a habit you no longer need away with every habit that
+  depends on it. It leaves the map, the check-in, the plan picker and the
+  stats, but keeps its gauge, streaks and history; the "Archived" section
+  under the roadmap (as a map or a list) brings a branch back. The time away
+  never counts as missed, and a timer resumes where its clock stood.
+- **Offline** — every screen opens on its last saved copy and refreshes
+  behind the scenes.
+
 ## Download
 
 Get the latest `.apk` from the [Releases](../../releases/latest) page and open it
@@ -34,7 +69,7 @@ src/
   app/
     _layout.tsx          providers + signed-in / signed-out guard
     (auth)/              login, register
-    (tabs)/              roadmap (index), check-in, plan, stats, settings
+    (tabs)/              roadmap (index), check-in, plan, tasks, stats, settings
   components/            screens' building blocks (island map, habit form…)
     ui/                  primitives: Txt, Btn, Card, Sheet, Segmented, pickers…
   lib/

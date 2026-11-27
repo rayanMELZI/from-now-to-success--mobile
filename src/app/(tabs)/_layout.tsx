@@ -74,6 +74,12 @@ export default function TabsLayout() {
             <NativeTabs.Trigger.Icon md="assignment" />
             <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
+          {/* Same deal for the tasks list. Android's bar holds five tabs at
+              most, so with the plan on too the list lives inside the Plan tab. */}
+          <NativeTabs.Trigger name="tasks" hidden={!user.tasksEnabled || user.plannerEnabled}>
+            <NativeTabs.Trigger.Icon md="task_alt" />
+            <NativeTabs.Trigger.Label>Tasks</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
           <NativeTabs.Trigger name="stats">
             <NativeTabs.Trigger.Icon md="bar_chart" />
             <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
