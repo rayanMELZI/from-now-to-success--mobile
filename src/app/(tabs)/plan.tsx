@@ -442,6 +442,20 @@ function Planner() {
           onDone={stopSelecting}
         />
       )}
+      {/* The way into select mode, within thumb's reach however far the plan is scrolled. */}
+      {!selecting && blocks.length > 0 && (
+        <View style={{ position: "absolute", right: 84, bottom: 24 }}>
+          <Btn
+            size="sm"
+            variant="ghost"
+            label="Select"
+            icon={<ListChecks size={15} color={c.ink} />}
+            onPress={startSelecting}
+            accessibilityLabel="Pick lines to move them in time, tick them off or delete them together"
+            style={{ backgroundColor: c.surface, minHeight: 40, borderRadius: 20, elevation: 4, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 6 }}
+          />
+        </View>
+      )}
       {!selecting && (
         <View style={{ position: "absolute", right: 16, bottom: 16 }}>
           <IconBtn label="Add a line" onPress={() => setComposing(true)} size={56} style={{ backgroundColor: c.accent, elevation: 6, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8 }}>
