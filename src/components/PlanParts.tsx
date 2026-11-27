@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { ArrowDown, ArrowUp, Ban, Check, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react-native";
+import { ArrowDown, ArrowUp, Ban, Check, Pencil, Plus, Sparkles, Trash2, Undo2, X } from "lucide-react-native";
 import {
   formatGap,
   formatMinute,
@@ -210,6 +210,8 @@ export function SelectBar({
   onSelectAll,
   onClear,
   onShift,
+  onMarkDone,
+  onDelete,
   onDone,
 }: {
   selectedCount: number;
@@ -220,10 +222,14 @@ export function SelectBar({
   onSelectAll: () => void;
   onClear: () => void;
   onShift: (delta: number) => void;
+  onMarkDone: (done: boolean) => void;
+  onDelete: () => void;
   onDone: () => void;
 }) {
-  const { c } = useTheme();
-  const ready = amount >= MIN_SHIFT && amount <= MAX_SHIFT && selectedCount > 0 && !busy;
+  const { c, isDark } = useTheme();
+  const picked = selectedCount > 0 && !busy;
+  const ready = amount >= MIN_SHIFT && amount <= MAX_SHIFT && picked;
+  const red = isDark ? tw.rose[400] : tw.rose[600];
   const custom = !SHIFT_PRESETS.includes(amount);
 
   return (
@@ -290,6 +296,12 @@ export function SelectBar({
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Btn variant="ghost" label="Earlier" icon={<ArrowUp size={15} color={c.ink} />} onPress={() => onShift(-amount)} disabled={!ready} flex />
           <Btn label="Later" icon={<ArrowDown size={15} color="#fff" />} onPress={() => onShift(amount)} disabled={!ready} loading={busy} flex />
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 6, borderTopWidth: 1, borderTopColor: c.line, paddingTop: 10 }}>
+          <Btn size="sm" variant="ghost" label="Done" icon={<Check size={14} color={c.ink} />} onPress={() => onMarkDone(true)} disabled={!picked} flex />
+          <Btn size="sm" variant="ghost" label="Not done" icon={<Undo2 size={14} color={c.ink} />} onPress={() => onMarkDone(false)} disabled={!picked} flex />
+          <Btn size="sm" variant="outline" tone="danger" label="Delete" icon={<Trash2 size={14} color={red} />} onPress={onDelete} disabled={!picked} flex />
         </View>
       </View>
     </View>

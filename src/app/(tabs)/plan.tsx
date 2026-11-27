@@ -286,6 +286,82 @@ function Planner() {
     });
   }
 
+  /** Removes every picked line at once — after one confirmation. */
+  function deleteSelected() {
+    if (!day) return;
+    const ids = blocks.filter((b) => selectedIds.has(b.id)).map((b) => b.id);
+    if (ids.length === 0) return;
+    Alert.alert(ids.length === 1 ? "Delete the picked line?" : `Delete the ${ids.length} picked lines?`, undefined, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          void run(async () => {
+            const fresh = await api<PlanDay>("/api/plan/delete", { method: "POST", body: { blockIds: ids } });
+            setDay(fresh);
+            setSelectedIds(new Set());
+            setNotice(ids.length === 1 ? "Deleted 1 line" : `Deleted ${ids.length} lines`);
+          }),
+      },
+    ]);
+  }
+
+  /**
+   * Ticks (or unticks) every picked line. Lines already in that state are
+   * left alone, and habits a tick finishes are checked in together, in one
+   * request — the same as ticking them one by one would do.
+   */
+  async function setSelectedDone(done: boolean) {
+    if (!day) return;
+    const targets = blocks.filter((b) => selectedIds.has(b.id) && b.done !== done);
+    if (targets.length === 0) return;
+    const ok = await run(async () => {
+      const saved = await Promise.all(
+        targets.map((b) => api<PlanBlock>(`/api/plan/${b.id}/done`, { method: "PUT", body: { done } })),
+      );
+      saved.forEach((block) => patchBlock(block.id, block));
+      return true;
+    });
+    if (!ok) {
+      // Some may have landed before the failure: the server has the truth.
+      void refetchDay();
+      return;
+    }
+    if (done) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+    const habitIds = done
+      ? [
+          ...new Set(
+            targets
+              .map((b) => entryFor(b.habitId))
+              .filter((e): e is TodayEntry => e?.todayStatus === "PENDING")
+              .map((e) => e.habitId),
+          ),
+        ]
+      : [];
+    const lines = `${targets.length} line${targets.length === 1 ? "" : "s"}`;
+    const verb = done ? "Marked" : "Unmarked";
+    if (habitIds.length === 0) {
+      setNotice(`${verb} ${lines}`);
+      return;
+    }
+    try {
+      const result = await api<CheckinResult>("/api/checkins", {
+        method: "POST",
+        body: { entries: habitIds.map((habitId) => ({ habitId, done: true })) },
+      });
+      setNotice(
+        `${verb} ${lines} · ${habitIds.length} habit${habitIds.length === 1 ? "" : "s"} checked in · ${
+          result.earnedPoints > 0 ? "+" : ""
+        }${result.earnedPoints} points`,
+      );
+      void Promise.all([invalidate(keys.today, keys.habits, ["history"]), refreshUser()]).catch(() => {});
+    } catch (err) {
+      setError(errorMessage(err, "Could not check those habits in"));
+    }
+  }
+
   async function copyFrom(from: string) {
     if (!day) return;
     await run(async () => {
@@ -356,6 +432,8 @@ function Planner() {
           onSelectAll={() => setSelectedIds(new Set(blocks.map((b) => b.id)))}
           onClear={() => setSelectedIds(new Set())}
           onShift={shiftSelected}
+          onMarkDone={(done) => void setSelectedDone(done)}
+          onDelete={deleteSelected}
           onDone={stopSelecting}
         />
       )}
